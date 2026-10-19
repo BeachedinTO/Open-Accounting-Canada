@@ -1235,7 +1235,8 @@ function jobIdFromForm(form) {
 const CURRENCIES = ['USD', 'CAD', 'EUR', 'GBP', 'AUD', 'JPY', 'CHF', 'MXN', 'INR', 'CNY'];
 
 function currencyFormGroupsHtml(selected, rate) {
-    const sel = (selected || 'USD').toUpperCase();
+    // bsq: a new document starts in the company's home currency (CAD)
+    const sel = (selected || (typeof App !== 'undefined' && App.settings && App.settings.home_currency) || 'CAD').toUpperCase();
     const opts = CURRENCIES.map(c => `<option ${c === sel ? 'selected' : ''}>${c}</option>`).join('');
     return `<div class="form-group"><label>Currency</label>
             <select name="currency" onchange="prefillFxRate(this)">${opts}</select></div>

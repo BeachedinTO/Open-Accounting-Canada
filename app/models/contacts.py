@@ -36,7 +36,7 @@ class Customer(Base):
     bill_city = Column(String(100), nullable=True)
     bill_state = Column(String(50), nullable=True)
     bill_zip = Column(String(20), nullable=True)
-    bill_country = Column(String(100), default="US")
+    bill_country = Column(String(100), default="CA")  # bsq
 
     # Shipping address
     ship_address1 = Column(String(200), nullable=True)
@@ -44,7 +44,7 @@ class Customer(Base):
     ship_city = Column(String(100), nullable=True)
     ship_state = Column(String(50), nullable=True)
     ship_zip = Column(String(20), nullable=True)
-    ship_country = Column(String(100), default="US")
+    ship_country = Column(String(100), default="CA")  # bsq
 
     terms = Column(String(50), default="Net 30")
     credit_limit = Column(Numeric(15, 2), nullable=True)
@@ -82,7 +82,7 @@ class Vendor(Base):
     city = Column(String(100), nullable=True)
     state = Column(String(50), nullable=True)
     zip = Column(String(20), nullable=True)
-    country = Column(String(100), default="US")
+    country = Column(String(100), default="CA")  # bsq
 
     terms = Column(String(50), default="Net 30")
     tax_id = Column(String(50), nullable=True)

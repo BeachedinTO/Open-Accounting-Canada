@@ -40,13 +40,13 @@ class CustomerCreate(StrictModel):
     bill_city: Optional[str] = Field(None, max_length=100)
     bill_state: Optional[str] = Field(None, max_length=50)
     bill_zip: Optional[str] = Field(None, max_length=20)
-    bill_country: str = Field("US", max_length=100)
+    bill_country: str = Field("CA", max_length=100)  # bsq
     ship_address1: Optional[str] = Field(None, max_length=200)
     ship_address2: Optional[str] = Field(None, max_length=200)
     ship_city: Optional[str] = Field(None, max_length=100)
     ship_state: Optional[str] = Field(None, max_length=50)
     ship_zip: Optional[str] = Field(None, max_length=20)
-    ship_country: str = Field("US", max_length=100)
+    ship_country: str = Field("CA", max_length=100)  # bsq
     # None = the company's default terms (Settings); see create_customer.
     terms: Optional[str] = Field(None, max_length=50)
     credit_limit: CreditLimit = None
@@ -141,7 +141,7 @@ class VendorCreate(StrictModel):
     city: Optional[str] = Field(None, max_length=100)
     state: Optional[str] = Field(None, max_length=50)
     zip: Optional[str] = Field(None, max_length=20)
-    country: str = Field("US", max_length=100)
+    country: str = Field("CA", max_length=100)  # bsq
     terms: str = Field("Net 30", max_length=50)
     tax_id: Optional[str] = Field(None, max_length=50)
     account_number: Optional[str] = Field(None, max_length=50)

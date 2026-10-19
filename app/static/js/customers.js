@@ -335,8 +335,8 @@ const CustomersPage = {
 
     async showForm(id = null) {
         let c = { name: '', company: '', email: '', phone: '', mobile: '', fax: '', website: '',
-            bill_address1: '', bill_address2: '', bill_city: '', bill_state: '', bill_zip: '', bill_country: 'US',
-            ship_address1: '', ship_address2: '', ship_city: '', ship_state: '', ship_zip: '', ship_country: 'US',
+            bill_address1: '', bill_address2: '', bill_city: '', bill_state: '', bill_zip: '', bill_country: 'CA',
+            ship_address1: '', ship_address2: '', ship_city: '', ship_state: '', ship_zip: '', ship_country: 'CA',
             terms: 'Net 30', credit_limit: '', tax_id: '', is_taxable: true, is_active: true, notes: '' };
         if (id) {
             c = await API.get(`/customers/${id}`);
@@ -386,7 +386,7 @@ const CustomersPage = {
                     <div class="form-group"><label>Postal Code</label>
                         <input name="bill_zip" value="${escapeHtml(c.bill_zip || '')}"></div>
                     <div class="form-group"><label>Country</label>
-                        <select name="bill_country">${countryOptions(c.bill_country || 'US')}</select></div>
+                        <select name="bill_country">${countryOptions(c.bill_country || 'CA')}</select></div>
                 </div>
                 <h3 id="cust-ship-heading" style="margin:16px 0 8px; font-size:14px; color:var(--gray-600);">Shipping Address</h3>
                 <div class="form-grid" role="group" aria-labelledby="cust-ship-heading">
@@ -401,7 +401,7 @@ const CustomersPage = {
                     <div class="form-group"><label>Postal Code</label>
                         <input name="ship_zip" value="${escapeHtml(c.ship_zip || '')}"></div>
                     <div class="form-group"><label>Country</label>
-                        <select name="ship_country">${countryOptions(c.ship_country || 'US')}</select></div>
+                        <select name="ship_country">${countryOptions(c.ship_country || 'CA')}</select></div>
                 </div>
                 <div class="form-grid" style="margin-top:16px;">
                     <div class="form-group"><label>Business Number (BN)</label>

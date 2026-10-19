@@ -91,7 +91,7 @@ const VendorsPage = {
         const address = [
             [vendor.address1, vendor.address2].filter(Boolean).join(', '),
             [vendor.city, vendor.state, vendor.zip].filter(Boolean).join(' '),
-            vendor.country && vendor.country !== 'US' ? vendor.country : '',
+            vendor.country && vendor.country !== 'CA' ? vendor.country : '',  // bsq: domestic is Canada
         ].filter(Boolean).join('\n');
         const acct = accounts.find(a => a.id === vendor.default_expense_account_id);
         const acctLabel = acct ? `${acct.account_number ? acct.account_number + ' - ' : ''}${acct.name}` : '';
@@ -295,7 +295,7 @@ const VendorsPage = {
 
     async showForm(id = null) {
         let v = { name:'', company:'', email:'', phone:'', fax:'', website:'',
-            address1:'', address2:'', city:'', state:'', zip:'', country:'US',
+            address1:'', address2:'', city:'', state:'', zip:'', country:'CA',
             terms:'Net 30', tax_id:'', account_number:'', default_expense_account_id:'',
             is_1099_vendor:false, vendor_1099_type:'', w9_on_file:false, notes:'' };
         if (id) v = await API.get(`/vendors/${id}`);
@@ -335,7 +335,7 @@ const VendorsPage = {
                     <div class="form-group"><label>Postal Code</label>
                         <input name="zip" value="${escapeHtml(v.zip || '')}"></div>
                     <div class="form-group"><label>Country</label>
-                        <select name="country">${countryOptions(v.country || 'US')}</select></div>
+                        <select name="country">${countryOptions(v.country || 'CA')}</select></div>
                 </div>
                 <div class="form-grid" style="margin-top:16px;">
                     <div class="form-group"><label>Terms</label>

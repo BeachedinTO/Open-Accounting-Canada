@@ -33,9 +33,9 @@ const TaxPage = {
                 <label for="hst-period" style="font-size:10px;font-weight:700;">Reporting period:</label>
                 <select id="hst-period" onchange="TaxPage.pickPeriod(this.value)">${opts}<option value="custom">Custom dates…</option></select>
                 <label style="font-size:10px;font-weight:700;">From:</label>
-                <input type="date" id="tax-start" value="${def.start}">
+                <input type="date" id="tax-start" value="${def.start}" onchange="$('#hst-period').value='custom'">
                 <label style="font-size:10px;font-weight:700;">To:</label>
-                <input type="date" id="tax-end" value="${def.end}">
+                <input type="date" id="tax-end" value="${def.end}" onchange="$('#hst-period').value='custom'">
                 <button class="btn btn-primary" onclick="TaxPage.generate()">Show</button>
             </div>
             <div style="background:#fef3c7;border:1px solid #fbbf24;padding:6px 10px;margin-bottom:12px;font-size:10px;color:#92400e;">
