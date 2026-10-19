@@ -272,7 +272,7 @@ const InvoicesPage = {
             </table></div>
             <div class="invoice-totals">
                 <div class="total-row"><span class="label">Subtotal</span><span class="value">${money(inv.subtotal)}</span></div>
-                <div class="total-row"><span class="label">Tax</span><span class="value">${money(inv.tax_amount)}</span></div>
+                <div class="total-row"><span class="label">HST</span><span class="value">${money(inv.tax_amount)}</span></div>
                 <div class="total-row grand-total"><span class="label">Total</span><span class="value">${money(inv.total)}</span></div>
                 <div class="total-row"><span class="label">Paid</span><span class="value">${money(inv.amount_paid)}</span></div>
                 <div class="total-row grand-total"><span class="label">Balance Due</span><span class="value">${money(inv.balance_due)}</span></div>
@@ -664,7 +664,7 @@ const InvoicesPage = {
                         <input name="po_number" value="${escapeHtml(inv.po_number || '')}"></div>
                     ${classGroup}${jobGroup}${pledgeGroup}
                     ${currencyFormGroupsHtml(inv.currency, inv.exchange_rate)}
-                    <div class="form-group"><label>Tax Rate (%)</label>
+                    <div class="form-group"><label>HST (%)</label>
                         <input name="tax_rate" type="number" step="0.0001" value="${+((inv.tax_rate || 0) * 100).toFixed(4)}"
                             oninput="InvoicesPage.recalc()">
                         ${InvoicesPage._keptTax != null ? `<div class="hint" id="inv-kept-tax">Tax stays at ${formatCurrency(InvoicesPage._keptTax)}, the amount it came in with. Enter a rate to work it out instead, or untick Tax on the lines for none.</div>` : ''}</div>
@@ -673,7 +673,7 @@ const InvoicesPage = {
                 <table class="line-items-table">
                     <thead><tr>
                         <th scope="col">Item</th><th scope="col">Description</th>${InvoicesPage.lineClasses() ? Nonprofit.classHeadHtml() : ''}<th scope="col" class="col-qty">Qty</th>
-                        <th scope="col" class="col-rate">Rate</th><th scope="col" title="Sales tax applies to this line">Tax</th><th scope="col" class="col-amount">Amount</th><th scope="col" class="col-actions"></th>
+                        <th scope="col" class="col-rate">Rate</th><th scope="col" title="HST applies to this line">HST</th><th scope="col" class="col-amount">Amount</th><th scope="col" class="col-actions"></th>
                     </tr></thead>
                     <tbody id="inv-lines">
                         ${inv.lines.map((l, i) => InvoicesPage.lineRowHtml(i, l, items)).join('')}
@@ -682,7 +682,7 @@ const InvoicesPage = {
                 <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px;" onclick="InvoicesPage.addLine()">+ Add Line</button>
                 <div class="invoice-totals" id="inv-totals">
                     <div class="total-row"><span class="label">Subtotal</span><span class="value" id="inv-subtotal">$0.00</span></div>
-                    <div class="total-row"><span class="label">Tax</span><span class="value" id="inv-tax">$0.00</span></div>
+                    <div class="total-row"><span class="label">HST</span><span class="value" id="inv-tax">$0.00</span></div>
                     <div class="total-row grand-total"><span class="label">Total</span><span class="value" id="inv-total">$0.00</span></div>
                 </div>
                 <div class="form-group" style="margin-top:12px;"><label>Notes</label>

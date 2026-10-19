@@ -21,6 +21,8 @@ CHART_OF_ACCOUNTS = [
     {"account_number": "1100", "name": "Accounts Receivable", "account_type": "asset"},
     {"account_number": "1200", "name": "Undeposited Funds", "account_type": "asset"},
     {"account_number": "1300", "name": "Inventory", "account_type": "asset"},
+    # bsq: GST/HST paid on purchases, claimed back as input tax credits
+    {"account_number": "1350", "name": "HST Recoverable (ITCs)", "account_type": "asset"},
     {"account_number": "1400", "name": "Prepaid Expenses", "account_type": "asset"},
     {"account_number": "1500", "name": "Equipment", "account_type": "asset"},
     {
@@ -40,7 +42,7 @@ CHART_OF_ACCOUNTS = [
     },
     {
         "account_number": "2200",
-        "name": "Sales Tax Payable",
+        "name": "HST Payable",  # bsq: GST/HST collected on sales
         "account_type": "liability",
     },
     {

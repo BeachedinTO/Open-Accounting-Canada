@@ -211,11 +211,6 @@ const CustomersPage = {
 
             ${creditsHtml}
 
-            <!-- reseller permits -->
-            <div style="margin-bottom:14px">
-                <h4 style="font-size:11px;text-transform:uppercase;color:var(--text-muted);margin:0 0 4px 0">Reseller permits</h4>
-                ${permitsBody}
-            </div>
 
             <!-- jobs (projects) -->
             <div style="margin-bottom:14px">
@@ -386,9 +381,9 @@ const CustomersPage = {
                         <input name="bill_address2" value="${escapeHtml(c.bill_address2 || '')}"></div>
                     <div class="form-group"><label>City</label>
                         <input name="bill_city" value="${escapeHtml(c.bill_city || '')}"></div>
-                    <div class="form-group"><label>State / County</label>
+                    <div class="form-group"><label>Province</label>
                         <input name="bill_state" value="${escapeHtml(c.bill_state || '')}"></div>
-                    <div class="form-group"><label>ZIP / Postcode</label>
+                    <div class="form-group"><label>Postal Code</label>
                         <input name="bill_zip" value="${escapeHtml(c.bill_zip || '')}"></div>
                     <div class="form-group"><label>Country</label>
                         <select name="bill_country">${countryOptions(c.bill_country || 'US')}</select></div>
@@ -401,19 +396,19 @@ const CustomersPage = {
                         <input name="ship_address2" value="${escapeHtml(c.ship_address2 || '')}"></div>
                     <div class="form-group"><label>City</label>
                         <input name="ship_city" value="${escapeHtml(c.ship_city || '')}"></div>
-                    <div class="form-group"><label>State / County</label>
+                    <div class="form-group"><label>Province</label>
                         <input name="ship_state" value="${escapeHtml(c.ship_state || '')}"></div>
-                    <div class="form-group"><label>ZIP / Postcode</label>
+                    <div class="form-group"><label>Postal Code</label>
                         <input name="ship_zip" value="${escapeHtml(c.ship_zip || '')}"></div>
                     <div class="form-group"><label>Country</label>
                         <select name="ship_country">${countryOptions(c.ship_country || 'US')}</select></div>
                 </div>
                 <div class="form-grid" style="margin-top:16px;">
-                    <div class="form-group"><label>Tax ID</label>
+                    <div class="form-group"><label>Business Number (BN)</label>
                         <input name="tax_id" value="${escapeHtml(c.tax_id || '')}"></div>
                     <div class="form-group"><label>Credit Limit</label>
                         <input name="credit_limit" type="number" step="0.01" min="0" placeholder="No limit" value="${c.credit_limit || ''}"></div>
-                    <div class="form-group"><label>Sales Tax</label>
+                    <div class="form-group"><label>HST</label>
                         <label style="font-weight:normal;"><input type="checkbox" name="tax_exempt" ${c.is_taxable === false ? 'checked' : ''}>
                             Tax exempt: no sales tax on anything sold to them (a reseller, a church, a school)</label></div>
                     ${id ? `<div class="form-group"><label>Status</label>

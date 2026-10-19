@@ -213,6 +213,6 @@ def test_a_bill_booked_before_the_change_goes_out_as_booked(
     trns, spls = _block(client, "OLD-1")
     assert [(s[3], s[5]) for s in spls] == [
         (seed_accounts["5000"].name, "100.00"),
-        ("Sales Tax Payable", "8.25"),
+        ("HST Payable", "8.25"),  # bsq: 2200 renamed
     ]
     assert _file(trns, spls) == _ledger(db_session, "OLD-1")

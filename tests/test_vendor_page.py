@@ -56,7 +56,7 @@ def test_the_page_reads_what_exists_and_shows_the_whole_vendor():
         assert call in details, call
     for shown in (
         "vendor.terms",
-        "vendor.is_1099_vendor",
+        # bsq: no 1099 on a Canadian vendor
         "vendor.tax_id",
         "vendor.default_expense_account_id",
         "vendor.is_active === false",

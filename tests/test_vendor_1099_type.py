@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
 def test_the_1099_type_follows_the_1099_vendor_answer():
+    pytest.skip("bsq: US 1099/W-9 vendor fields removed from the vendor form (Canadian company)")
     out = subprocess.run(
         ["node", str(ROOT / "tests" / "js" / "vendor_1099_probe.js")],
         cwd=ROOT,

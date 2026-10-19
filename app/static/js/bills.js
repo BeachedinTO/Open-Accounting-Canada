@@ -82,7 +82,7 @@ const BillsPage = {
             </table></div>
             <div class="invoice-totals">
                 <div class="total-row"><span class="label">Subtotal</span><span class="value">${formatCurrency(bill.subtotal)}</span></div>
-                ${Number(bill.tax_amount) ? `<div class="total-row" title="Part of what the goods cost: it posts with the lines, not to Sales Tax Payable"><span class="label">Tax</span><span class="value">${formatCurrency(bill.tax_amount)}</span></div>` : ''}
+                ${Number(bill.tax_amount) ? `<div class="total-row" title="Part of what the goods cost: it posts with the lines, not to Sales Tax Payable"><span class="label">HST</span><span class="value">${formatCurrency(bill.tax_amount)}</span></div>` : ''}
                 <div class="total-row grand-total"><span class="label">Total</span><span class="value">${formatCurrency(bill.total)}</span></div>
                 <div class="total-row"><span class="label">Paid</span><span class="value">${formatCurrency(bill.amount_paid)}</span></div>
                 <div class="total-row grand-total"><span class="label">Balance</span><span class="value">${formatCurrency(bill.balance_due)}</span></div>
@@ -174,7 +174,7 @@ const BillsPage = {
     _printCheckButton(p) {
         const byCheck = !p.method || p.method === 'check' || !!p.check_number;
         if (p.is_voided || !byCheck) return '';
-        return `<button class="btn btn-sm btn-secondary" onclick="window.open('/api/checks/print?bill_payment_id=${p.id}','_blank')">Print Check</button> `;
+        return `<button class="btn btn-sm btn-secondary" onclick="window.open('/api/checks/print?bill_payment_id=${p.id}','_blank')">Print Cheque</button> `;
     },
 
     _items: [],
@@ -230,7 +230,12 @@ const BillsPage = {
         // A bill's tax rate (set through the API, #250) is kept by the save,
         // so the form shows its tax and a total that is the bill's (2.22.1
         // gate, NEW-47: a $35.42 bill opened as $33.72).
-        BillsPage._taxRate = bill ? Number(bill.tax_rate) || 0 : 0;
+        // bsq: a new bill starts at the company's HST rate when HST on
+        // purchases is claimed back; an existing bill keeps its own rate.
+        const coSettings = await API.get('/settings').catch(() => ({}));
+        const hstOn = coSettings.purchase_tax_recoverable === 'true';
+        BillsPage._taxRate = bill ? Number(bill.tax_rate) || 0
+            : (hstOn ? (parseFloat(coSettings.default_tax_rate || '0') || 0) / 100 : 0);
         BillsPage.lineCount = 1;
         const classGroup = await classFormGroupHtml(bill ? bill.class_id : undefined);
         const jobGroup = await jobFormGroupHtml(bill ? bill.job_id : null);
@@ -257,6 +262,11 @@ const BillsPage = {
                             ${termChoices.map(t =>
                                 `<option ${t===terms?'selected':''}>${escapeHtml(t)}</option>`).join('')}
                         </select></div>
+                    <div class="form-group"><label>HST (%)</label>
+                        <input name="tax_rate" type="number" step="0.0001" min="0" max="100"
+                            title="HST the vendor charged, as a percent (13 in Ontario; 0 for a supplier who charges none). Claimed back as an input tax credit."
+                            value="${+((BillsPage._taxRate || 0) * 100).toFixed(4)}"
+                            oninput="BillsPage._taxRate = (parseFloat(this.value) || 0) / 100; BillsPage.recalc()"></div>
                     ${classGroup}${jobGroup}
                     ${currencyFormGroupsHtml(bill ? bill.currency : undefined, bill ? bill.exchange_rate : undefined)}
                 </div>
@@ -267,8 +277,8 @@ const BillsPage = {
                 </table></div>
                 <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px;" onclick="BillsPage.addLine()">+ Add Line</button>
                 <div class="invoice-totals">
-                    ${BillsPage._taxRate ? `<div class="total-row"><span class="label">Subtotal</span><span class="value" id="bill-subtotal">$0.00</span></div>
-                    <div class="total-row" title="Part of what the goods cost: it posts with the lines, not to Sales Tax Payable"><span class="label">Tax (${Number((BillsPage._taxRate * 100).toFixed(4))}%)</span><span class="value" id="bill-tax">$0.00</span></div>` : ''}
+                    <div class="total-row"><span class="label">Subtotal</span><span class="value" id="bill-subtotal">$0.00</span></div>
+                    <div class="total-row" title="HST the vendor charged: posts to 1350 HST Recoverable (ITCs)"><span class="label">HST</span><span class="value" id="bill-tax">$0.00</span></div>
                     <div class="total-row grand-total"><span class="label">Total</span><span class="value" id="bill-total">$0.00</span></div>
                 </div>
                 <div class="form-group" style="margin-top:12px;"><label>Notes</label>
@@ -527,6 +537,7 @@ const BillsPage = {
                 class_id: classIdFromForm(form),
                 job_id: jobIdFromForm(form),
                 ...currencyPayloadFromForm(form),
+                tax_rate: BillsPage._taxRate || 0,
                 lines,
             };
             if (id) {
@@ -591,10 +602,10 @@ const BillsPage = {
                         <input name="date" type="date" required value="${todayISO()}"></div>
                     <div class="form-group"><label>Method</label>
                         <select name="method">
-                            <option value="check">Check</option><option value="ach">ACH</option>
+                            <option value="check">Cheque</option><option value="ach">E-transfer / EFT</option>
                             <option value="cash">Cash</option><option value="credit_card">Credit Card</option>
                         </select></div>
-                    <div class="form-group"><label>Check #</label>
+                    <div class="form-group"><label>Cheque #</label>
                         <input name="check_number"></div>
                 </div>
                 ${onlyNote}
@@ -638,7 +649,7 @@ const BillsPage = {
         if (byVendor.size === 0) { toast('Select bills to pay', 'error'); return; }
         const checkNumber = form.check_number.value || null;
         if (checkNumber && byVendor.size > 1) {
-            toast('One check number cannot pay several vendors. Pay one vendor at a time, or leave Check # blank.', 'error');
+            toast('One cheque number cannot pay several vendors. Pay one vendor at a time, or leave Cheque # blank.', 'error');
             return;
         }
         // Blank Pay From pays from 1000 Checking (the server's default).

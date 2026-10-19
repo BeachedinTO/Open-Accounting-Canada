@@ -65,7 +65,7 @@ def test_the_credit_memo_prints_like_an_invoice(client, memo, monkeypatch):
         "Port Alder, OR 97000",
         memo["invoice"]["invoice_number"],
         "Sourdough Loaf",
-        "Tax (8.25%)",
+        "HST (8.25%)",
         "$17.00",
         "$1.40",
         "Total Credit",

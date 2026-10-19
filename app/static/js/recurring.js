@@ -90,13 +90,13 @@ const RecurringPage = {
                             ${['Net 15','Net 30','Net 45','Net 60','Due on Receipt'].map(t =>
                                 `<option value="${t}" ${rec.terms===t?'selected':''}>${t}</option>`).join('')}
                         </select></div>
-                    <div class="form-group"><label>Tax Rate (%)</label>
+                    <div class="form-group"><label>HST (%)</label>
                         <input name="tax_rate" type="number" step="0.0001" value="${+((rec.tax_rate || 0) * 100).toFixed(4)}" oninput="RecurringPage.recalc()"></div>
                     ${classGroup}
                 </div>
                 <h3 style="margin:12px 0 8px;font-size:14px;">Line Items</h3>
                 <table class="line-items-table">
-                    <thead><tr><th scope="col">Item</th><th scope="col">Description</th><th scope="col" class="col-qty">Qty</th><th scope="col" class="col-rate">Rate</th><th scope="col" title="Sales tax applies to this line">Tax</th><th scope="col" class="col-amount">Amount</th><th scope="col" class="col-actions"></th></tr></thead>
+                    <thead><tr><th scope="col">Item</th><th scope="col">Description</th><th scope="col" class="col-qty">Qty</th><th scope="col" class="col-rate">Rate</th><th scope="col" title="HST applies to this line">HST</th><th scope="col" class="col-amount">Amount</th><th scope="col" class="col-actions"></th></tr></thead>
                     <tbody id="rec-lines">
                         ${rec.lines.map((l, i) => RecurringPage.lineRowHtml(i, l)).join('')}
                     </tbody>
@@ -104,7 +104,7 @@ const RecurringPage = {
                 <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px;" onclick="RecurringPage.addLine()">+ Add Line</button>
                 <div class="invoice-totals" id="rec-totals">
                     <div class="total-row"><span class="label">Subtotal</span><span class="value" id="rec-subtotal">$0.00</span></div>
-                    <div class="total-row"><span class="label">Tax</span><span class="value" id="rec-tax">$0.00</span></div>
+                    <div class="total-row"><span class="label">HST</span><span class="value" id="rec-tax">$0.00</span></div>
                     <div class="total-row grand-total"><span class="label">Each ${T('Invoice')}</span><span class="value" id="rec-total">$0.00</span></div>
                 </div>
                 <div class="form-group" style="margin-top:12px;"><label>Notes</label>

@@ -48,7 +48,7 @@ const DepositsPage = {
                 <thead><tr>
                     <th scope="col" style="width:30px;"><input type="checkbox" id="dep-select-all" data-write aria-label="Select all payments" onchange="DepositsPage.toggleAll()"></th>
                     <th scope="col">Date</th><th scope="col">Received From</th><th scope="col">Description</th>
-                    <th scope="col">Check # / Ref</th><th scope="col">Method</th>
+                    <th scope="col">Cheque # / Ref</th><th scope="col">Method</th>
                     <th scope="col" class="amount">Amount</th>
                 </tr></thead><tbody>`;
             for (const p of pending) {
@@ -136,7 +136,7 @@ const DepositsPage = {
         const payments = rows
             ? `<div class="table-container"><table>
                 <thead><tr><th scope="col">Date</th><th scope="col">Received From</th><th scope="col">Description</th>
-                <th scope="col">Check # / Ref</th><th scope="col">Method</th><th scope="col" class="amount">Amount</th></tr></thead>
+                <th scope="col">Cheque # / Ref</th><th scope="col">Method</th><th scope="col" class="amount">Amount</th></tr></thead>
                 <tbody>${rows}</tbody></table></div>`
             : `<p style="font-size:11px; color:var(--text-muted);">${d.voided
                 ? 'This deposit is void: its payments went back on the Make Deposits list.'

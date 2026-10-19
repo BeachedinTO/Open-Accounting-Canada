@@ -1,11 +1,11 @@
 """A bill payment's check prints from the bill's view (explore 2.17.3
 integration, I24).
 
-Print Check sat only on payments RECEIVED from customers, where it printed
+Print Cheque sat only on payments RECEIVED from customers, where it printed
 a check payable to the customer; putting that right (W-M9) left no Print
 Check anywhere, while GET /api/checks/print?bill_payment_id= still worked.
 The bill's view lists its payments with Void; a payment made by check now
-has Print Check beside it. ACH, cash and card payments have no check, and a
+has Print Cheque beside it. ACH, cash and card payments have no check, and a
 void payment offers nothing.
 """
 
@@ -23,7 +23,7 @@ def _print(pid):
     return (
         '<button class="btn btn-sm btn-secondary" '
         f"onclick=\"window.open('/api/checks/print?bill_payment_id={pid}','_blank')\">"
-        "Print Check</button>"
+        "Print Cheque</button>"
     )
 
 

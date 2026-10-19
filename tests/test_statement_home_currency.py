@@ -18,6 +18,15 @@ from app.models.contacts import Customer
 from app.models.transactions import TransactionLine
 
 
+
+@pytest.fixture(autouse=True)
+def _usd_home(client):
+    """bsq: the company keeps its books in CAD now. These tests were written
+    for a USD home currency (with EUR or CAD as the foreign one), so they
+    set it; the multi-currency rules they check are the same either way."""
+    r = client.put("/api/settings", json={"home_currency": "USD"})
+    assert r.status_code == 200, r.text
+
 @pytest.fixture
 def muller(db_session):
     c = Customer(name="Bäckerei Müller", is_active=True)

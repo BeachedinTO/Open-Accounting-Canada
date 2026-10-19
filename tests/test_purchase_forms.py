@@ -30,8 +30,11 @@ def test_a_new_po_starts_with_no_tax_not_the_selling_rate():
     # It pre-filled the company's sales-tax rate (8.25%), and the tax then
     # landed on Sales Tax Payable (W-H5, F9).
     form = _method(_js("purchase_orders.js"), "async showForm(id = null)")
+    # bsq: in Ontario the supplier's rate is the same 13% HST, claimed back
+    # as an input tax credit (never Sales/HST Payable), so a new PO starts
+    # at the company's HST rate when HST on purchases is recoverable.
     assert "default_tax_rate" not in form
-    assert "tax_rate: 0," in form
+    assert "bsqPurchaseHstPercent()" in form
 
 
 def test_the_po_form_shows_line_amounts_and_totals_as_you_type():

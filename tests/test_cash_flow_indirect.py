@@ -289,12 +289,12 @@ def test_customer_bill_and_payroll_money_is_operating(client, books):
     assert wc["Undeposited Funds"] == -300.0
     assert wc["Accounts Receivable"] == -250.0  # 1,550 invoiced, 1,300 paid
     assert wc["Accounts Payable"] == 250.0  # one bill of two still owed
-    assert wc["Sales Tax Payable"] == 50.0
+    assert wc["HST Payable"] == 50.0
     assert wc["Credit Card"] == 80.0
     payroll_owed = [
         name
         for name in wc
-        if "Payable" in name and name not in ("Accounts Payable", "Sales Tax Payable")
+        if "Payable" in name and name not in ("Accounts Payable", "HST Payable")
     ]
     assert payroll_owed, wc  # withholdings and employer taxes, not yet paid
     # none of it anywhere else

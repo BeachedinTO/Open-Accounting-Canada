@@ -149,9 +149,9 @@ const EmployeesPage = {
                         <input name="address2" value="${escapeHtml(emp.address2 || '')}"></div>
                     <div class="form-group"><label>City</label>
                         <input name="city" value="${escapeHtml(emp.city || '')}"></div>
-                    <div class="form-group"><label>State</label>
+                    <div class="form-group"><label>Province</label>
                         <input name="state" maxlength="2" value="${escapeHtml(emp.state || '')}"></div>
-                    <div class="form-group"><label>ZIP</label>
+                    <div class="form-group"><label>Postal Code</label>
                         <input name="zip" value="${escapeHtml(emp.zip || '')}"></div>
                 </div>
 

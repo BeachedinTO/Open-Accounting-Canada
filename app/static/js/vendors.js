@@ -145,8 +145,7 @@ const VendorsPage = {
                     <div style="margin-top:6px;font-size:12px;color:var(--text-muted)">
                         ${vendor.is_active === false ? '<span style="color:var(--text-danger)">Inactive</span>' : '<span style="color:var(--text-success)">Active</span>'}
                         &nbsp;·&nbsp; Terms: ${escapeHtml(vendor.terms || 'Net 30')}
-                        ${vendor.is_1099_vendor ? ` · <strong>1099${vendor.vendor_1099_type ? ' ' + escapeHtml(vendor.vendor_1099_type) : ''}</strong> · W-9 ${vendor.w9_on_file ? 'on file' : '<span style="color:var(--text-danger)">not on file</span>'}` : ''}
-                        ${vendor.tax_id ? ` · Tax ID: <code>${escapeHtml(vendor.tax_id)}</code>` : ''}
+                        ${vendor.tax_id ? ` · BN: <code>${escapeHtml(vendor.tax_id)}</code>` : ''}
                         ${vendor.account_number ? ` · Account #: <code>${escapeHtml(vendor.account_number)}</code>` : ''}
                     </div>
                 </div>
@@ -216,7 +215,7 @@ const VendorsPage = {
                     <a class="btn btn-sm btn-secondary" style="margin-left:8px;" href="/api/vendors/${vendor.id}/payments/csv" download>Save CSV</a></p>
                 ${payments.length === 0 ? '<p style="color:var(--text-muted);font-size:13px;margin:0">No payments yet</p>' :
                     `<table class="data-table" style="font-size:12px">
-                        <thead><tr><th scope="col">Date</th><th scope="col">Method</th><th scope="col">Check #</th><th scope="col" class="amount">Amount</th></tr></thead>
+                        <thead><tr><th scope="col">Date</th><th scope="col">Method</th><th scope="col">Cheque #</th><th scope="col" class="amount">Amount</th></tr></thead>
                         <tbody>${payRows}</tbody>
                     </table>`}
             </div>`;
@@ -241,7 +240,7 @@ const VendorsPage = {
         return `<div role="group" aria-label="Reports for this vendor" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end">
             <span style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;align-self:center">Reports</span>
             ${link('ap-aging', { vendor_id: vendor.id, period: 'this_year_to_date' }, 'A/P Aging')}
-            ${vendor.is_1099_vendor ? link('1099-summary', { year: new Date().getFullYear(), vendor_id: vendor.id }, '1099 Summary') : ''}
+            
             ${acct ? link('account-transactions', { account_id: acct.id, period: 'this_year_to_date' }, `${acct.name} register`) : ''}
         </div>`;
     },
@@ -331,9 +330,9 @@ const VendorsPage = {
                         <input name="address2" value="${escapeHtml(v.address2 || '')}"></div>
                     <div class="form-group"><label>City</label>
                         <input name="city" value="${escapeHtml(v.city || '')}"></div>
-                    <div class="form-group"><label>State / County</label>
+                    <div class="form-group"><label>Province</label>
                         <input name="state" value="${escapeHtml(v.state || '')}"></div>
-                    <div class="form-group"><label>ZIP / Postcode</label>
+                    <div class="form-group"><label>Postal Code</label>
                         <input name="zip" value="${escapeHtml(v.zip || '')}"></div>
                     <div class="form-group"><label>Country</label>
                         <select name="country">${countryOptions(v.country || 'US')}</select></div>
@@ -344,7 +343,7 @@ const VendorsPage = {
                             ${['Net 15','Net 30','Net 45','Net 60','Due on Receipt'].map(t =>
                                 `<option ${v.terms===t?'selected':''}>${t}</option>`).join('')}
                         </select></div>
-                    <div class="form-group"><label>Tax ID</label>
+                    <div class="form-group"><label>Business Number (BN)</label>
                         <input name="tax_id" value="${escapeHtml(v.tax_id || '')}"></div>
                     <div class="form-group"><label>Account #</label>
                         <input name="account_number" value="${escapeHtml(v.account_number || '')}"></div>
@@ -355,24 +354,6 @@ const VendorsPage = {
                             <option value="true" ${v.is_active !== false ? 'selected' : ''}>Active</option>
                             <option value="false" ${v.is_active === false ? 'selected' : ''}>Inactive</option>
                         </select></div>` : ''}
-                    <div class="form-group"><label>1099 Vendor</label>
-                        <select name="is_1099_vendor" onchange="VendorsPage.toggle1099Type(this)">
-                            <option value="false" ${!v.is_1099_vendor ? 'selected' : ''}>No</option>
-                            <option value="true" ${v.is_1099_vendor ? 'selected' : ''}>Yes</option>
-                        </select></div>
-                    <div class="form-group"><label>1099 Type</label>
-                        <select name="vendor_1099_type" ${v.is_1099_vendor ? '' : 'disabled'} title="Set 1099 Vendor to Yes to choose a type">
-                            <option value="" ${!v.vendor_1099_type ? 'selected' : ''}>-- None --</option>
-                            <option value="NEC" ${v.vendor_1099_type==='NEC' ? 'selected' : ''}>NEC (Non-Employee Comp)</option>
-                            <option value="MISC" ${v.vendor_1099_type==='MISC' ? 'selected' : ''}>MISC</option>
-                            <option value="INT" ${v.vendor_1099_type==='INT' ? 'selected' : ''}>INT (Interest)</option>
-                            <option value="DIV" ${v.vendor_1099_type==='DIV' ? 'selected' : ''}>DIV (Dividends)</option>
-                        </select></div>
-                    <div class="form-group"><label>W-9 on file</label>
-                        <select name="w9_on_file" title="The 1099-NEC prints this; the 1099 Summary names a reportable vendor without one">
-                            <option value="false" ${!v.w9_on_file ? 'selected' : ''}>No</option>
-                            <option value="true" ${v.w9_on_file ? 'selected' : ''}>Yes</option>
-                        </select></div>
                     <div class="form-group full-width"><label>Notes</label>
                         <textarea name="notes">${escapeHtml(v.notes || '')}</textarea></div>
                 </div>

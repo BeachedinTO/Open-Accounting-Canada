@@ -68,6 +68,7 @@ const VendorCreditsPage = {
     lineCount: 0,
 
     async showForm() {
+        const hstPct = typeof bsqPurchaseHstPercent === 'function' ? await bsqPurchaseHstPercent() : 0;
         const [vendors, items, accounts] = await Promise.all([
             API.get('/vendors?active_only=true'),
             API.get('/items?active_only=true'),
@@ -91,8 +92,8 @@ const VendorCreditsPage = {
                         <input name="date" type="date" required value="${todayISO()}"></div>
                     <div class="form-group"><label>Their credit note #</label>
                         <input name="ref_number" placeholder="optional"></div>
-                    <div class="form-group"><label>Tax Rate (%)</label>
-                        <input name="tax_rate" type="number" step="0.0001" min="0" value="0" oninput="VendorCreditsPage.recalc()"></div>
+                    <div class="form-group"><label>HST (%)</label>
+                        <input name="tax_rate" type="number" step="0.0001" min="0" value="${hstPct}" oninput="VendorCreditsPage.recalc()"></div>
                     ${classGroup}
                 </div>
                 <h3 style="margin:12px 0 8px;font-size:14px;">Credit Lines</h3>
@@ -103,7 +104,7 @@ const VendorCreditsPage = {
                 <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px;" onclick="VendorCreditsPage.addLine()">+ Add Line</button>
                 <div class="invoice-totals">
                     <div class="total-row"><span class="label">Subtotal</span><span class="value" id="vc-subtotal">$0.00</span></div>
-                    <div class="total-row"><span class="label">Tax</span><span class="value" id="vc-tax">$0.00</span></div>
+                    <div class="total-row"><span class="label">HST</span><span class="value" id="vc-tax">$0.00</span></div>
                     <div class="total-row grand-total"><span class="label">Total</span><span class="value" id="vc-total">$0.00</span></div>
                 </div>
                 <div class="form-group" style="margin-top:12px;"><label>Notes</label>

@@ -51,7 +51,7 @@ const SalesReceiptsPage = {
                 <strong>Date:</strong> ${formatDate(sr.date)}<br>
                 <strong>Status:</strong> ${statusBadge(sr.status)}<br>
                 ${payment && payment.method ? `<strong>Payment Method:</strong> ${escapeHtml(payment.method)}<br>` : ''}
-                ${payment && payment.check_number ? `<strong>Check #:</strong> ${escapeHtml(payment.check_number)}<br>` : ''}
+                ${payment && payment.check_number ? `<strong>Cheque #:</strong> ${escapeHtml(payment.check_number)}<br>` : ''}
                 ${payment && payment.reference ? `<strong>Reference:</strong> ${escapeHtml(payment.reference)}<br>` : ''}
             </div>
             <div class="table-container"><table>
@@ -60,7 +60,7 @@ const SalesReceiptsPage = {
             </table></div>
             <div class="invoice-totals">
                 <div class="total-row"><span class="label">Subtotal</span><span class="value">${money(sr.subtotal)}</span></div>
-                <div class="total-row"><span class="label">Tax</span><span class="value">${money(sr.tax_amount)}</span></div>
+                <div class="total-row"><span class="label">HST</span><span class="value">${money(sr.tax_amount)}</span></div>
                 <div class="total-row grand-total"><span class="label">Total</span><span class="value">${money(sr.total)}</span></div>
                 ${sr.fair_value_amount ? `<div class="total-row"><span class="label">Fair value of goods/services${sr.fair_value_description ? ` (${escapeHtml(sr.fair_value_description)})` : ''}</span><span class="value">${money(sr.fair_value_amount)}</span></div>
                 <div class="total-row"><span class="label">Deductible portion</span><span class="value">${money(sr.total - sr.fair_value_amount)}</span></div>` : ''}
@@ -160,10 +160,10 @@ const SalesReceiptsPage = {
                     <div class="form-group"><label>Payment Method</label>
                         <select name="method">
                             <option value="">--</option>
-                            <option>Cash</option><option>Check</option>
-                            <option>Credit Card</option><option>ACH/EFT</option><option>Other</option>
+                            <option>Cash</option><option value="Check">Cheque</option>
+                            <option>Credit Card</option><option value="ACH/EFT">E-transfer / EFT</option><option>Other</option>
                         </select></div>
-                    <div class="form-group"><label>Check #</label>
+                    <div class="form-group"><label>Cheque #</label>
                         <input name="check_number"></div>
                     <div class="form-group"><label>Reference</label>
                         <input name="reference"></div>
@@ -172,7 +172,7 @@ const SalesReceiptsPage = {
                             <option value="">Undeposited Funds (default)</option>${bankOpts}</select></div>
                     ${classGroup}${jobGroup}
                     ${currencyFormGroupsHtml(null, null)}
-                    <div class="form-group"><label>Tax Rate (%)</label>
+                    <div class="form-group"><label>HST (%)</label>
                         <input name="tax_rate" type="number" step="0.0001" value="${+((sr.tax_rate || 0) * 100).toFixed(4)}"
                             oninput="SalesReceiptsPage.recalc()"></div>
                     ${Terms.isNonprofit() ? `
@@ -189,7 +189,7 @@ const SalesReceiptsPage = {
                 <table class="line-items-table">
                     <thead><tr>
                         <th scope="col">Item</th><th scope="col">Description</th><th scope="col" class="col-qty">Qty</th>
-                        <th scope="col" class="col-rate">Rate</th><th scope="col" title="Sales tax applies to this line">Tax</th><th scope="col" class="col-amount">Amount</th><th scope="col" class="col-actions"></th>
+                        <th scope="col" class="col-rate">Rate</th><th scope="col" title="HST applies to this line">HST</th><th scope="col" class="col-amount">Amount</th><th scope="col" class="col-actions"></th>
                     </tr></thead>
                     <tbody id="sr-lines">
                         ${sr.lines.map((l, i) => SalesReceiptsPage.lineRowHtml(i, l, items)).join('')}
@@ -198,7 +198,7 @@ const SalesReceiptsPage = {
                 <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px;" onclick="SalesReceiptsPage.addLine()">+ Add Line</button>
                 <div class="invoice-totals" id="sr-totals">
                     <div class="total-row"><span class="label">Subtotal</span><span class="value" id="sr-subtotal">$0.00</span></div>
-                    <div class="total-row"><span class="label">Tax</span><span class="value" id="sr-tax">$0.00</span></div>
+                    <div class="total-row"><span class="label">HST</span><span class="value" id="sr-tax">$0.00</span></div>
                     <div class="total-row grand-total"><span class="label">Total Received</span><span class="value" id="sr-total">$0.00</span></div>
                 </div>
                 <div class="form-group" style="margin-top:12px;"><label>Notes</label>

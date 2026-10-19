@@ -59,12 +59,14 @@ def _bill(client, vendor_id, seed_accounts, day="2026-11-03"):
     return r.json()
 
 
-def test_off_by_default_tax_stays_in_the_cost(client, db_session, seed_accounts):
+def test_switched_off_tax_stays_in_the_cost(client, db_session, seed_accounts):
+    # bsq: on by default now; a company can still switch it off
+    _recoverable(client, on=False)
     v = _vendor(client)
     b = _bill(client, v["id"], seed_accounts)
     assert Decimal(b["total"]) == Decimal("1412.50")
     assert _gl(db_session, seed_accounts["5100"].id) == Decimal("1130.00")
-    assert _itc_id(db_session) is None
+    assert _gl(db_session, _itc_id(db_session)) == 0
 
 
 def test_a_bill_posts_its_hst_to_the_itc_account(client, db_session, seed_accounts):
@@ -202,12 +204,13 @@ def test_an_expense_without_hst_is_unchanged(client, db_session, seed_accounts):
     assert r.status_code == 201, r.text
     assert r.json()["tax_amount"] == 0
     assert _gl(db_session, seed_accounts["6000"].id) == Decimal("113.00")
-    assert _itc_id(db_session) is None
+    assert _gl(db_session, _itc_id(db_session)) == 0
 
 
 def test_hst_on_an_expense_is_refused_unless_the_setting_is_on(
     client, db_session, seed_accounts
 ):
+    _recoverable(client, on=False)
     r = _expense(client, seed_accounts)
     assert r.status_code == 400
     assert "Tax on Purchases" in r.text

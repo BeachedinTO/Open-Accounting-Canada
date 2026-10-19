@@ -11,6 +11,15 @@
  * Shown only when Settings > Tax on Purchases is recoverable. The 13%
  * button works out the HST inside a tax-included total: total x 13 / 113.
  */
+/** bsq: the HST rate (percent) a new purchase document starts at — the
+ * company's default tax rate when HST on purchases is claimed back. */
+async function bsqPurchaseHstPercent() {
+    try {
+        const s = await API.get('/settings');
+        return s.purchase_tax_recoverable === 'true' ? (parseFloat(s.default_tax_rate || '0') || 0) : 0;
+    } catch (e) { return 0; }
+}
+
 const HstField = {
     RATE: 13,
     async enabled() {
@@ -53,7 +62,7 @@ const ExpensesPage = {
 
         if (expenses.length === 0) {
             html += `<div class="empty-state"><p>No expenses recorded yet</p>
-                <p style="font-size:12px; color:var(--gray-600);">Enter a receipt you've already paid — by card, cash, or check. Scan it to fill the form.</p></div>`;
+                <p style="font-size:12px; color:var(--gray-600);">Enter a receipt you've already paid — by card, cheque, e-transfer or cash. Scan it to fill the form.</p></div>`;
         } else {
             html += `<div class="table-container"><table>
                 <thead><tr><th scope="col">Date</th><th scope="col">Payee</th><th scope="col">Expense Account</th><th scope="col">Paid From</th><th scope="col">Reference</th>
@@ -122,7 +131,7 @@ const ExpensesPage = {
                         <input name="amount" type="number" step="0.01" min="0.01" required></div>
                     ${HstField.html(hstOn)}
                     <div class="form-group"><label>Reference</label>
-                        <input name="reference" placeholder="Receipt / check #"></div>
+                        <input name="reference" placeholder="Receipt / cheque #"></div>
                     ${classGroup}${Nonprofit.functionFormGroupHtml()}${jobGroup}${costCodeGroup}${billableGroup}
                     <div class="form-group full-width"><label>Memo</label>
                         <textarea name="memo"></textarea></div>

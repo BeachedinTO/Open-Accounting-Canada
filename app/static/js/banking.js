@@ -737,7 +737,7 @@ const BankingPage = {
                     <td><input type="date" id="qe-date" aria-label="New entry date" value="${today}" style="width:120px; font-size:11px; padding:2px 4px;" ${key}></td>
                     <td><input type="text" id="qe-payee" aria-label="New entry payee" placeholder="Payee" style="width:100%; font-size:11px; padding:2px 4px;" ${key}></td>
                     <td><input type="text" id="qe-memo" aria-label="New entry memo" placeholder="Memo" style="width:100%; font-size:11px; padding:2px 4px;" ${key}></td>
-                    <td><input type="text" id="qe-ref" aria-label="New entry check or reference number" placeholder="Ref" style="width:60px; font-size:11px; padding:2px 4px;" ${key}></td>
+                    <td><input type="text" id="qe-ref" aria-label="New entry cheque or reference number" placeholder="Ref" style="width:60px; font-size:11px; padding:2px 4px;" ${key}></td>
                     <td><select id="qe-category" aria-label="New entry category" data-no-search style="font-size:11px; padding:2px 4px; max-width:180px;"><option value="">Category…</option>${cats}</select></td>
                     <td class="amount"><input type="number" step="0.01" min="0" id="qe-out" aria-label="New entry ${escapeHtml(outLabel)}" placeholder="0.00" style="width:90px; font-size:11px; padding:2px 4px; text-align:right;" ${key}></td>
                     <td class="amount"><input type="number" step="0.01" min="0" id="qe-in" aria-label="New entry ${escapeHtml(inLabel)}" placeholder="0.00" style="width:90px; font-size:11px; padding:2px 4px; text-align:right;" ${key}></td>
@@ -808,7 +808,7 @@ const BankingPage = {
                         <div style="font-size:10px; color:var(--gray-500);">${isCard ? 'Negative = a charge (owe more). Positive = a payment to the card.' : 'Negative = money out (a payment). Positive = money in (a deposit).'}</div></div>
                     <div class="form-group"><label>Payee</label>
                         <input name="payee"></div>
-                    <div class="form-group"><label>Check / ref #</label>
+                    <div class="form-group"><label>Cheque / ref #</label>
                         <input name="check_number"></div>
                     <div class="form-group full-width"><label>Category * <span style="font-weight:normal; color:var(--gray-500);">(the other side of the entry; a bank or card account makes it a transfer)</span></label>
                         <select name="category_account_id" id="entry-category"><option value="">Select…</option>${catOpts}</select></div>
@@ -1354,7 +1354,7 @@ const BankingPage = {
                 <div class="form-group"><label for="csv-map-description">Description *</label>${pick('description', true)}</div>
                 <div class="form-group"><label for="csv-map-payee">Payee</label>${pick('payee')}</div>
                 <div class="form-group"><label for="csv-map-amount">Amount (one column; money out is negative)</label>${pick('amount')}</div>
-                <div class="form-group"><label for="csv-map-check_number">Check #</label>${pick('check_number')}</div>
+                <div class="form-group"><label for="csv-map-check_number">Cheque #</label>${pick('check_number')}</div>
                 <div class="form-group"><label for="csv-map-debit">…or money out (debit)</label>${pick('debit')}</div>
                 <div class="form-group"><label for="csv-map-credit">…and money in (credit)</label>${pick('credit')}</div>
             </div>

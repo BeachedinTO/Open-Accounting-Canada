@@ -75,7 +75,7 @@ const App = {
         // Phase 4: CSV Import/Export
         '/csv':           { page: 'csv',             label: 'CSV Import/Export',  render: () => App.renderCSV() },
         // Phase 5: Advanced Integration
-        '/tax':           { page: 'tax',             label: 'Tax Reports',        render: () => TaxPage.render() },
+        '/tax':           { page: 'tax',             label: 'HST Return',         render: () => TaxPage.render() },
         // Phase 6: Ambitious
         '/companies':     { page: 'companies',       label: 'Companies',          render: () => CompaniesPage.render() },
         '/employees':     { page: 'employees',       label: 'Employees',          render: () => EmployeesPage.render() },
@@ -675,7 +675,7 @@ const App = {
         'BankingPage.finishReconcile', 'BankingPage.abandonReconcile', 'BankingPage.matchLine', 'BankingPage.showMatch',
         'BankingPage.excludeLine', 'BankingPage.findMatches', 'BankingPage.addAll', 'BankingPage.postLegacy',
         'BankingPage.dismissLegacy', 'BankingPage.syncSimpleFIN', 'BankingPage.disconnectSimpleFIN',
-        'BankingPage.showSimpleFINHistory', 'BankRulesPage.deleteRule', 'BankRulesPage.applyAll', 'TaxPage.showPaySalesTax',
+        'BankingPage.showSimpleFINHistory', 'BankRulesPage.deleteRule', 'BankRulesPage.applyAll', 'TaxPage.showRecord', 'TaxPage.voidReturn',
         'ReportsPage.sendCollectionLetters', 'ReportsPage.batchEmailStatements', 'ReportsPage.emailGivingStatements',
         'ReportsPage.applyLateFees', 'ReportsPage.deleteSaved', 'IIFPage.importFile',
         'IIFPage.importQbReportCsv', 'MigrationPage.doImport', 'OpeningBalancesPage.save', 'BudgetsPage.saveAll',

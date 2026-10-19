@@ -126,7 +126,7 @@ const FixedAssetsPage = {
                 </select></div>
             <div class="form-group acq acq-paid_from"><label>Paid from *</label>
                 <select name="acq_account_id">${bankOpts}</select></div>
-            <div class="form-group acq acq-paid_from"><label>Check / ref #</label>
+            <div class="form-group acq acq-paid_from"><label>Cheque / ref #</label>
                 <input name="acq_reference" maxlength="100"></div>
             <div class="form-group full-width acq acq-document hidden"><label>Bill or expense *</label>
                 <select name="acq_document"><option value="">Choose…</option>${docs}</select>

@@ -117,9 +117,9 @@ const SettingsPage = {
                             <input name="company_address2" value="${escapeHtml(s.company_address2 || '')}"></div>
                         <div class="form-group"><label>City</label>
                             <input name="company_city" value="${escapeHtml(s.company_city || '')}"></div>
-                        <div class="form-group"><label>State</label>
+                        <div class="form-group"><label>Province</label>
                             <input name="company_state" value="${escapeHtml(s.company_state || '')}"></div>
-                        <div class="form-group"><label>ZIP</label>
+                        <div class="form-group"><label>Postal Code</label>
                             <input name="company_zip" value="${escapeHtml(s.company_zip || '')}"></div>
                         <div class="form-group"><label>Phone</label>
                             <input name="company_phone" value="${escapeHtml(s.company_phone || '')}"></div>
@@ -127,7 +127,7 @@ const SettingsPage = {
                             <input name="company_email" type="email" value="${escapeHtml(s.company_email || '')}"></div>
                         <div class="form-group"><label>Website</label>
                             <input name="company_website" value="${escapeHtml(s.company_website || '')}"></div>
-                        <div class="form-group"><label>Tax ID / EIN</label>
+                        <div class="form-group"><label>HST / Business Number</label>
                             <input name="company_tax_id" value="${escapeHtml(s.company_tax_id || '')}"></div>
                         <div class="form-group full-width"><label for="company-type">Company Type</label>
                             <select id="company-type" name="company_type" onchange="SettingsPage.changeCompanyType(this)">
@@ -168,7 +168,7 @@ const SettingsPage = {
                                 ${['Net 15','Net 30','Net 45','Net 60','Due on Receipt'].map(t =>
                                     `<option ${s.default_terms===t?'selected':''}>${t}</option>`).join('')}
                             </select></div>
-                        <div class="form-group"><label>Default Tax Rate (%)</label>
+                        <div class="form-group"><label>HST Rate (%)</label>
                             <input name="default_tax_rate" type="number" min="0" max="100" step="0.0001"
                                 title="A percent from 0 to 100, up to four decimal places: 8.875 means 8.875%"
                                 value="${escapeHtml(SettingsPage._ratePercent(s.default_tax_rate))}"></div>

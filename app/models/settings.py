@@ -46,10 +46,10 @@ DEFAULT_SETTINGS = {
     # next start asks for the password (services/auth.py). Off by default.
     "ask_password_on_start": "false",
     "default_terms": "Net 30",
-    "default_tax_rate": "0.0",
+    "default_tax_rate": "13",  # bsq: Ontario HST
     # bsq (Canada): "true" posts tax on bills and vendor credits to 1350 HST
     # Recoverable (ITCs) instead of adding it to what the purchase cost.
-    "purchase_tax_recoverable": "false",
+    "purchase_tax_recoverable": "true",
     "invoice_prefix": "",
     "invoice_next_number": "1001",
     "estimate_prefix": "E-",
@@ -76,7 +76,7 @@ DEFAULT_SETTINGS = {
     "chart_setup_source": "",
     "chart_setup_ready_at": "",
     # Multi-currency: ISO code the general ledger is kept in
-    "home_currency": "USD",
+    "home_currency": "CAD",  # bsq
     # Stripe Online Payments
     "stripe_enabled": "false",
     "stripe_publishable_key": "",

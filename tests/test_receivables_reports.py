@@ -151,7 +151,7 @@ def test_the_report_pages_show_the_credits_and_the_tax():
     income = js[
         js.index("async incomeByCustomer(") : js.index("async customerStatementPicker(")
     ]
-    assert "total_tax" in income and ">Sales Tax<" in income
+    assert "total_tax" in income and ">HST<" in income
 
 
 def test_the_dashboard_total_receivables_is_the_same_figure(

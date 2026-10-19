@@ -75,7 +75,7 @@ const PaymentsPage = {
                 <strong>Date:</strong> ${formatDate(p.date)}<br>
                 <strong>Amount:</strong> ${formatCurrency(p.amount)}<br>
                 <strong>Method:</strong> ${escapeHtml(p.method || 'N/A')}<br>
-                ${p.check_number ? `<strong>Check #:</strong> ${escapeHtml(p.check_number)}<br>` : ''}
+                ${p.check_number ? `<strong>Cheque #:</strong> ${escapeHtml(p.check_number)}<br>` : ''}
                 ${p.reference ? `<strong>Reference:</strong> ${escapeHtml(p.reference)}<br>` : ''}
                 ${p.notes ? `<strong>Notes:</strong> ${escapeHtml(p.notes)}<br>` : ''}
                 ${p.deposited_in ? `<strong>Deposited:</strong> in ${escapeHtml(p.deposited_in)}<br>` : ''}
@@ -140,10 +140,10 @@ const PaymentsPage = {
                     <div class="form-group"><label>Method</label>
                         <select name="method">
                             <option value="">--</option>
-                            <option>Check</option><option>Cash</option>
-                            <option>Credit Card</option><option>ACH/EFT</option><option>Other</option>
+                            <option value="Check">Cheque</option><option>Cash</option>
+                            <option>Credit Card</option><option value="ACH/EFT">E-transfer / EFT</option><option>Other</option>
                         </select></div>
-                    <div class="form-group"><label>Check #</label>
+                    <div class="form-group"><label>Cheque #</label>
                         <input name="check_number"></div>
                     <div class="form-group"><label>Reference</label>
                         <input name="reference"></div>

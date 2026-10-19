@@ -75,8 +75,9 @@ def test_only_a_bank_or_card_account_can_pay_it(client, db_session, seed_account
 
 
 def test_the_pay_from_list_offers_only_bank_and_card_accounts():
+    # bsq: Pay Sales Tax became recording the HST return (tax.js showRecord)
     js = (JS / "tax.js").read_text(encoding="utf-8")
-    dialog = js[js.index("async showPaySalesTax()") :]
+    dialog = js[js.index("async showRecord()") :]
     dialog = dialog[: dialog.index("openModal(")]
     assert "API.get('/accounts?bank=1&active_only=true')" in dialog
     assert "account_type === 'asset'" not in dialog

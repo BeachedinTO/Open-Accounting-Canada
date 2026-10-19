@@ -70,7 +70,6 @@ SALES = [
     "ItemsPage.showMovements({loaf})",
     "ItemsPage.showAdjust({loaf})",
     "DepositsPage.view({deposit})",
-    "TaxPage.showPaySalesTax()",
     "ResellerPermitsPage.showForm()",
     "ResellerPermitsPage.showForm({permit_soon})",
     "ResellerPermitsPage.verifyWorkflow({permit_expired})",

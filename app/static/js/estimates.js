@@ -52,7 +52,7 @@ const EstimatesPage = {
             </table></div>
             <div class="invoice-totals">
                 <div class="total-row"><span class="label">Subtotal</span><span class="value">${formatCurrency(est.subtotal)}</span></div>
-                <div class="total-row"><span class="label">Tax</span><span class="value">${formatCurrency(est.tax_amount)}</span></div>
+                <div class="total-row"><span class="label">HST</span><span class="value">${formatCurrency(est.tax_amount)}</span></div>
                 <div class="total-row grand-total"><span class="label">Total</span><span class="value">${formatCurrency(est.total)}</span></div>
             </div>
             ${est.notes ? `<p style="margin-top:12px;color:var(--gray-500);">${escapeHtml(est.notes)}</p>` : ''}
@@ -170,7 +170,7 @@ const EstimatesPage = {
                         <input name="date" type="date" required value="${est.date}"></div>
                     <div class="form-group"><label>Expiration Date</label>
                         <input name="expiration_date" type="date" value="${est.expiration_date || ''}"></div>
-                    <div class="form-group"><label>Tax Rate (%)</label>
+                    <div class="form-group"><label>HST (%)</label>
                         <input name="tax_rate" type="number" step="0.0001" value="${+((est.tax_rate || 0) * 100).toFixed(4)}"
                             oninput="EstimatesPage.recalc()"></div>
                     ${classGroup}${jobGroup}
@@ -179,7 +179,7 @@ const EstimatesPage = {
                 <div class="table-container table-container--scroll"><table class="line-items-table">
                     <thead><tr>
                         <th scope="col">Item</th><th scope="col">Description</th>${CostCodes.headHtml()}<th scope="col" title='Unit cost (budget side)'>Cost</th><th scope="col" class="col-qty">Qty</th>
-                        <th scope="col" class="col-rate">Rate</th><th scope="col" title="Sales tax applies to this line">Tax</th><th scope="col" class="col-amount">Amount</th><th scope="col" class="col-actions"></th>
+                        <th scope="col" class="col-rate">Rate</th><th scope="col" title="HST applies to this line">HST</th><th scope="col" class="col-amount">Amount</th><th scope="col" class="col-actions"></th>
                     </tr></thead>
                     <tbody id="est-lines">
                         ${est.lines.map((l, i) => EstimatesPage.lineRowHtml(i, l, items)).join('')}
@@ -188,7 +188,7 @@ const EstimatesPage = {
                 <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px;" onclick="EstimatesPage.addLine()">+ Add Line</button>
                 <div class="invoice-totals" id="est-totals">
                     <div class="total-row"><span class="label">Subtotal</span><span class="value" id="est-subtotal">$0.00</span></div>
-                    <div class="total-row"><span class="label">Tax</span><span class="value" id="est-tax">$0.00</span></div>
+                    <div class="total-row"><span class="label">HST</span><span class="value" id="est-tax">$0.00</span></div>
                     <div class="total-row grand-total"><span class="label">Total</span><span class="value" id="est-total">$0.00</span></div>
                 </div>
                 <div class="form-group" style="margin-top:12px;"><label>Notes</label>

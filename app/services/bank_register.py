@@ -106,6 +106,10 @@ def voided_transaction_ids(db: Session, txn_ids) -> set[int]:
 
 
 _LINKS = {
+    # bsq: the HST return entry (and its void, which names it) opens as a
+    # journal entry
+    "hst_return": "/#/journal/{txn}",
+    "hst_return_void": "/#/journal/{id}",
     "invoice": "/#/invoices/{id}",
     "bill": "/#/bills/{id}",
     "payment": "/#/payments/{id}",

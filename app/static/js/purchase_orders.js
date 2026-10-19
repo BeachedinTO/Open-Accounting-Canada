@@ -50,7 +50,7 @@ const PurchaseOrdersPage = {
             </table></div>
             <div class="invoice-totals">
                 <div class="total-row"><span class="label">Subtotal</span><span class="value">${formatCurrency(po.subtotal)}</span></div>
-                ${Number(po.tax_amount) ? `<div class="total-row"><span class="label">Tax</span><span class="value">${formatCurrency(po.tax_amount)}</span></div>` : ''}
+                ${Number(po.tax_amount) ? `<div class="total-row"><span class="label">HST</span><span class="value">${formatCurrency(po.tax_amount)}</span></div>` : ''}
                 <div class="total-row grand-total"><span class="label">Total</span><span class="value">${formatCurrency(po.total)}</span></div>
             </div>
             ${po.notes ? `<p style="margin-top:12px;color:var(--gray-500);">${escapeHtml(po.notes)}</p>` : ''}
@@ -80,7 +80,7 @@ const PurchaseOrdersPage = {
             date: todayISO(),
             expected_date: '',
             ship_to: '',
-            tax_rate: 0,
+            tax_rate: (typeof bsqPurchaseHstPercent === 'function' ? await bsqPurchaseHstPercent() : 0) / 100,  // bsq: Ontario HST
             notes: '',
             lines: [],
         };
@@ -104,7 +104,7 @@ const PurchaseOrdersPage = {
                         <input name="date" type="date" required value="${po.date}"></div>
                     <div class="form-group"><label>Expected Date</label>
                         <input name="expected_date" type="date" value="${po.expected_date || ''}"></div>
-                    <div class="form-group"><label>Tax Rate (%)</label>
+                    <div class="form-group"><label>HST (%)</label>
                         <input name="tax_rate" type="number" step="0.0001" min="0" value="${+((po.tax_rate || 0) * 100).toFixed(4)}"
                             oninput="PurchaseOrdersPage.recalc()"
                             title="Sales tax the vendor charges, if any. It becomes part of what the goods cost."></div>
@@ -120,7 +120,7 @@ const PurchaseOrdersPage = {
                 <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px;" onclick="PurchaseOrdersPage.addLine()">+ Add Line</button>
                 <div class="invoice-totals" id="po-totals">
                     <div class="total-row"><span class="label">Subtotal</span><span class="value" id="po-subtotal">$0.00</span></div>
-                    <div class="total-row"><span class="label">Tax</span><span class="value" id="po-tax">$0.00</span></div>
+                    <div class="total-row"><span class="label">HST</span><span class="value" id="po-tax">$0.00</span></div>
                     <div class="total-row grand-total"><span class="label">Total</span><span class="value" id="po-total">$0.00</span></div>
                 </div>
                 <div class="form-group" style="margin-top:12px;"><label>Notes</label>

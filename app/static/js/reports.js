@@ -23,7 +23,7 @@ const ReportsPage = {
         'account-transactions': { label: 'Drill-down',         open: (p) => ReportsPage.openDrillDown(p.account_id, null, p.start_date, p.end_date, p.class_id || null, null, p.from || null, { job_id: p.job_id, period: p.period || null }) },
         'ar-aging':             { label: () => T('Accounts Receivable Aging'), open: (p) => ReportsPage.arAging(p), asOf: true },
         'ap-aging':             { label: 'Accounts Payable Aging',    open: (p) => ReportsPage.apAging(p), asOf: true },
-        'sales-tax':            { label: 'Sales Tax Report',   open: (p) => ReportsPage.salesTax(p) },
+        'sales-tax':            { label: 'HST Collected',     open: (p) => ReportsPage.salesTax(p) },
         'general-ledger':       { label: 'General Ledger',     open: (p) => ReportsPage.generalLedger(p), keep: ['class_id'] },
         'income-by-customer':   { label: () => T('Income by Customer'), open: (p) => ReportsPage.incomeByCustomer(p) },
         'trial-balance':        { label: 'Trial Balance',      open: (p) => ReportsPage.trialBalance(p) },
@@ -347,13 +347,12 @@ const ReportsPage = {
                 ${Terms.isNonprofit() ? '' : card('balance-sheet', T('Balance Sheet'), Terms.text('Assets, liabilities, and equity'))}
                 ${card('ar-aging', T('A/R Aging'), 'Outstanding receivables by age')}
                 ${card('ap-aging', 'A/P Aging', 'Outstanding payables by age')}
-                ${card('sales-tax', 'Sales Tax', 'Tax collected by invoice')}
+                ${card('sales-tax', 'HST Collected', 'HST charged, by invoice')}
                 ${card('general-ledger', 'General Ledger', 'All journal entries by account')}
                 ${card('income-by-customer', T('Income by Customer'), Terms.isNonprofit() ? 'Contribution totals per donor' : 'Sales totals per customer')}
                 ${card('customer-statement', T('Customer Statement'), Terms.text('Invoice/payment history PDF'))}
                 ${card('trial-balance', 'Trial Balance', 'Debits and credits by account')}
                 ${card('cash-flow', 'Cash Flow', 'Operating, investing, financing')}
-                ${card('1099-summary', '1099 Summary', 'Vendor payments for 1099 filing')}
                 ${card('budget-vs-actual', 'Budget vs Actual', 'Monthly budget variance analysis')}
             </div>`;
     },
@@ -1132,7 +1131,7 @@ const ReportsPage = {
     },
 
     async salesTax(prefill) {
-        await ReportsPage.openPeriodModal("Sales Tax Report", "this_year_to_date", async (_period, range) => {
+        await ReportsPage.openPeriodModal("HST Collected", "this_year_to_date", async (_period, range) => {
             const data = await API.get(`/reports/sales-tax?start_date=${range.start}&end_date=${range.end}`);
             // Credit memos come back as negative rows; a document with
             // nothing taxable shows no rate rather than "8.25%, $0.00".
@@ -1300,7 +1299,7 @@ const ReportsPage = {
             return `
                 <p style="margin-bottom:12px; color:var(--gray-500);">${formatDate(data.start_date)} &mdash; ${formatDate(data.end_date)}</p>
                 <div class="table-container"><table>
-                    <thead><tr><th scope="col">${T('Customer')}</th><th scope="col" class="amount">${T('Invoices')}</th><th scope="col" class="amount">Sales</th><th scope="col" class="amount">Sales Tax</th><th scope="col" class="amount">Paid</th><th scope="col" class="amount">Balance</th></tr></thead>
+                    <thead><tr><th scope="col">${T('Customer')}</th><th scope="col" class="amount">${T('Invoices')}</th><th scope="col" class="amount">Sales</th><th scope="col" class="amount">HST</th><th scope="col" class="amount">Paid</th><th scope="col" class="amount">Balance</th></tr></thead>
                     <tbody>${rows || '<tr><td colspan="6" style="text-align:center; color:var(--gray-400);">No sales data</td></tr>'}</tbody>
                 </table></div>`;
         }, "Dates", false, { reportType: 'income_by_customer', view: 'income-by-customer', params: { customer_id: (prefill || {}).customer_id || null }, prefill });

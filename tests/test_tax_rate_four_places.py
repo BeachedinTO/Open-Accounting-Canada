@@ -91,7 +91,7 @@ def test_an_invoice_at_8_875_percent_stays_at_88_75(
     assert ledger["tax_posted"] == 88.75 and ledger["difference"] == 0
 
     printed = _printed(client, monkeypatch, f"/api/invoices/{inv['id']}")
-    assert printed.count("Tax (8.875%)") == 2
+    assert printed.count("HST (8.875%)") == 2
 
     # A duplicate works it out from the stored rate too.
     dup = _ok(client.post(f"/api/invoices/{inv['id']}/duplicate"))
@@ -102,7 +102,7 @@ def test_an_invoice_at_8_875_percent_stays_at_88_75(
     plain = _invoice(client, seed_customer.id, 0.0825)
     assert plain["tax_rate"] == "0.0825"
     assert _invoice(client, seed_customer.id, 0)["tax_rate"] == "0.0000"
-    assert "Tax (8.25%)" in _printed(
+    assert "HST (8.25%)" in _printed(
         client, monkeypatch, f"/api/invoices/{plain['id']}"
     )
 
@@ -122,7 +122,7 @@ def test_an_estimate_and_the_invoice_it_becomes(
     seven = _ok(client.put(path, json={"tax_rate": SEVEN}))
     assert seven["tax_rate"] == "0.070625"
     assert _money(seven["tax_amount"]) == Decimal("70.63")
-    assert "Tax (7.0625%)" in _printed(client, monkeypatch, path)
+    assert "HST (7.0625%)" in _printed(client, monkeypatch, path)
 
     _ok(client.put(path, json={"tax_rate": NYC}))
     inv = _ok(client.post(f"{path}/convert"))
@@ -148,7 +148,7 @@ def test_a_credit_memo_gives_back_the_tax_the_invoice_charged(
     )
     assert cm["tax_rate"] == "0.08875"
     assert _money(cm["tax_amount"]) == Decimal("88.75")
-    assert "Tax (8.875%)" in _printed(
+    assert "HST (8.875%)" in _printed(
         client, monkeypatch, f"/api/credit-memos/{cm['id']}"
     )
 
@@ -176,13 +176,13 @@ def test_a_bill_and_a_purchase_order_keep_the_vendors_rate(
     assert bill["tax_rate"] == "0.08875"
     assert _money(bill["tax_amount"]) == Decimal("88.75")
     assert _money(bill["total"]) == Decimal("1088.75")
-    assert "Tax (8.875%)" in _printed(client, monkeypatch, f"/api/bills/{bill['id']}")
+    assert "HST (8.875%)" in _printed(client, monkeypatch, f"/api/bills/{bill['id']}")
 
     po = _ok(client.post("/api/purchase-orders", json=dict(body, tax_rate=NYC)))
     path = f"/api/purchase-orders/{po['id']}"
     again = _ok(client.put(path, json={"lines": [THOUSAND]}))
     assert _money(again["tax_amount"]) == Decimal("88.75")
-    assert "Tax (8.875%)" in _printed(client, monkeypatch, path)
+    assert "HST (8.875%)" in _printed(client, monkeypatch, path)
 
     converted = _bill_from(client, path)
     assert converted["tax_rate"] == "0.08875"
@@ -207,7 +207,7 @@ def test_a_new_rate_alone_retotals_a_purchase_order(
     assert seven["tax_rate"] == "0.070625"
     assert _money(seven["tax_amount"]) == Decimal("70.63")
     assert _money(seven["total"]) == Decimal("1070.63")
-    assert "Tax (7.0625%)" in _printed(client, monkeypatch, path)
+    assert "HST (7.0625%)" in _printed(client, monkeypatch, path)
 
     converted = _bill_from(client, path)
     assert converted["tax_rate"] == "0.070625"

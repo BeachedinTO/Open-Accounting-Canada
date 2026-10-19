@@ -82,7 +82,7 @@ CONTROL_ACCOUNTS: dict[str, tuple[str, str]] = {
     ),
     "2000": ("Accounts Payable", "what you owe vendors — every bill and bill payment"),
     "2100": ("Credit Card", "credit-card charges and the card's balance"),
-    "2200": ("Sales Tax Payable", "sales tax collected on invoices and receipts"),
+    "2200": ("HST Payable", "GST/HST collected on invoices and receipts"),
     "3200": (
         "Retained Earnings",
         "the balancing account for imported opening balances",

@@ -264,6 +264,10 @@ def test_collector_finds_something():
 # - Legacy paths superseded by newer endpoints (kept for backwards compat)
 _INTENTIONAL_BACKEND_ONLY: set[tuple[str, str]] = {
     ("POST", "/api/stripe/webhook"),  # legacy alias for provider webhook
+    # bsq: the US Schedule C and Pay Sales Tax screens became the HST page
+    ("POST", "/api/reports/sales-tax/pay"),
+    ("GET", "/api/tax/schedule-c"),
+    ("GET", "/api/tax/schedule-c/csv"),
     # A garnishment order is ended, never deleted; DELETE stays so an API
     # client is told why (405) and where to go (POST .../end).
     ("DELETE", "/api/deductions/garnishments/{order_id}"),
