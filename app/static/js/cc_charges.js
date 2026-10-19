@@ -47,6 +47,7 @@ const CCChargesPage = {
         const classGroup = await classFormGroupHtml();
         const jobGroup = await jobFormGroupHtml(null);
         const acctOpts = PurchaseAccounts.options(accounts);
+        const hstOn = await HstField.enabled();
 
         openModal('Enter Credit Card Charge', `
             <form onsubmit="CCChargesPage.save(event)">
@@ -61,6 +62,7 @@ const CCChargesPage = {
                         <select name="card_account_id" required>${cardOpts}</select></div>
                     <div class="form-group"><label>Amount *</label>
                         <input name="amount" type="number" step="0.01" required></div>
+                    ${HstField.html(hstOn)}
                     <div class="form-group"><label>Reference</label>
                         <input name="reference"></div>
                     ${classGroup}${Nonprofit.functionFormGroupHtml()}${jobGroup}
@@ -85,6 +87,7 @@ const CCChargesPage = {
                 account_id: parseInt(form.account_id.value),
                 card_account_id: parseInt(form.card_account_id.value),
                 amount: parseFloat(form.amount.value),
+                tax_amount: HstField.value(form),
                 reference: form.reference.value || null,
                 memo: form.memo.value || null,
                 class_id: classIdFromForm(form),

@@ -15,6 +15,12 @@ from app.services.accounting import create_journal_entry, get_cc_account_id
 from app.services.bank_posting import void_document
 from app.services.bank_register import voided_transaction_ids
 from app.services.closing_date import check_closing_date
+from app.services.purchase_posting import (
+    get_itc_account_id,
+    is_itc_line,
+    itc_amount_of,
+    split_paid_amount,
+)
 from app.models.transactions import Transaction
 
 router = APIRouter(prefix="/api/cc-charges", tags=["cc-charges"])
@@ -38,7 +44,9 @@ def list_cc_charges(db: Session = Depends(get_db)):
     )
     results = []
     for txn in txns:
-        expense_line = next((ln for ln in txn.lines if ln.debit > 0), None)
+        expense_line = next(
+            (ln for ln in txn.lines if ln.debit > 0 and not is_itc_line(ln)), None
+        )
         card_line = next((ln for ln in txn.lines if ln.credit > 0), None)
         results.append(
             {
@@ -47,7 +55,9 @@ def list_cc_charges(db: Session = Depends(get_db)):
                 "date": txn.date.isoformat(),
                 "description": txn.description or "",
                 "reference": txn.reference or "",
-                "amount": float(expense_line.debit) if expense_line else 0,
+                # bsq: what was charged to the card, HST included
+                "amount": float(card_line.credit) if card_line else 0,
+                "tax_amount": float(itc_amount_of(txn)),
                 "account_name": (
                     names.get(expense_line.account_id, "") if expense_line else ""
                 ),
@@ -87,10 +97,11 @@ def create_cc_charge(data: CCChargeCreate, db: Session = Depends(get_db)):
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be positive")
 
+    net, itc = split_paid_amount(db, amount, data.tax_amount)
     journal_lines = [
         {
             "account_id": data.account_id,
-            "debit": amount,
+            "debit": net,
             "credit": Decimal("0"),
             "description": data.memo or data.payee or "",
             **(
@@ -106,6 +117,17 @@ def create_cc_charge(data: CCChargeCreate, db: Session = Depends(get_db)):
             "description": data.memo or data.payee or "",
         },
     ]
+
+    if itc:
+        journal_lines.insert(
+            1,
+            {
+                "account_id": get_itc_account_id(db),
+                "debit": itc,
+                "credit": Decimal("0"),
+                "description": "HST input tax credit",
+            },
+        )
 
     desc = f"CC Charge: {data.payee}" if data.payee else "Credit Card Charge"
     txn = create_journal_entry(

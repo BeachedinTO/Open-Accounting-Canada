@@ -158,3 +158,87 @@ def test_the_itc_account_cannot_be_renumbered(client, db_session, seed_accounts)
     _bill(client, v["id"], seed_accounts)
     r = client.put(f"/api/accounts/{_itc_id(db_session)}", json={"account_number": "1351"})
     assert r.status_code >= 400
+
+
+# ── Direct payments: cheque / e-transfer expenses and credit-card charges ──
+
+
+def _expense(client, seed_accounts, amount="113.00", tax="13.00", **extra):
+    body = {
+        "date": "2026-11-12",
+        "payee": "Home Depot",
+        "expense_account_id": seed_accounts["6000"].id,
+        "paid_from_account_id": seed_accounts["1000"].id,
+        "amount": amount,
+        "tax_amount": tax,
+        "reference": "e-transfer",
+    }
+    body.update(extra)
+    return client.post("/api/expenses", json=body)
+
+
+def test_an_expense_paid_by_cheque_or_etransfer_claims_its_hst(
+    client, db_session, seed_accounts
+):
+    _recoverable(client)
+    r = _expense(client, seed_accounts)
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["amount"] == 113.00  # what left the bank
+    assert body["tax_amount"] == 13.00
+    assert body["expense_account_name"] == seed_accounts["6000"].name
+    assert _gl(db_session, seed_accounts["6000"].id) == Decimal("100.00")
+    assert _gl(db_session, _itc_id(db_session)) == Decimal("13.00")
+    assert _gl(db_session, seed_accounts["1000"].id) == Decimal("-113.00")
+    # voiding takes it all back
+    assert client.post(f"/api/expenses/{body['id']}/void").status_code == 200
+    assert _gl(db_session, _itc_id(db_session)) == 0
+    assert _gl(db_session, seed_accounts["1000"].id) == 0
+
+
+def test_an_expense_without_hst_is_unchanged(client, db_session, seed_accounts):
+    _recoverable(client)
+    r = _expense(client, seed_accounts, tax="0")
+    assert r.status_code == 201, r.text
+    assert r.json()["tax_amount"] == 0
+    assert _gl(db_session, seed_accounts["6000"].id) == Decimal("113.00")
+    assert _itc_id(db_session) is None
+
+
+def test_hst_on_an_expense_is_refused_unless_the_setting_is_on(
+    client, db_session, seed_accounts
+):
+    r = _expense(client, seed_accounts)
+    assert r.status_code == 400
+    assert "Tax on Purchases" in r.text
+    assert _gl(db_session, seed_accounts["1000"].id) == 0
+
+
+def test_hst_cannot_be_the_whole_amount_or_negative(client, db_session, seed_accounts):
+    _recoverable(client)
+    assert _expense(client, seed_accounts, amount="13.00", tax="13.00").status_code == 400
+    assert _expense(client, seed_accounts, tax="-1").status_code == 400
+
+
+def test_a_credit_card_charge_claims_its_hst(client, db_session, seed_accounts):
+    _recoverable(client)
+    r = client.post(
+        "/api/cc-charges",
+        json={
+            "date": "2026-11-14",
+            "payee": "Lee Valley",
+            "account_id": seed_accounts["6000"].id,
+            "amount": "56.50",
+            "tax_amount": "6.50",
+        },
+    )
+    assert r.status_code == 201, r.text
+    assert _gl(db_session, seed_accounts["6000"].id) == Decimal("50.00")
+    assert _gl(db_session, _itc_id(db_session)) == Decimal("6.50")
+    assert _gl(db_session, seed_accounts["2100"].id) == Decimal("-56.50")
+    row = next(x for x in client.get("/api/cc-charges").json()
+               if x["id"] == r.json()["transaction_id"])
+    assert row["amount"] == 56.50 and row["tax_amount"] == 6.50
+    assert row["account_name"] == seed_accounts["6000"].name
+    assert client.post(f"/api/cc-charges/{row['id']}/void").status_code == 200
+    assert _gl(db_session, _itc_id(db_session)) == 0

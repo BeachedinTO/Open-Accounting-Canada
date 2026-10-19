@@ -13,6 +13,8 @@ class CCChargeCreate(StrictModel):
     # the card (a liability account; default 2100 Credit Card)
     card_account_id: Optional[int] = None
     amount: Decimal
+    # bsq: HST included in `amount`, claimed as an input tax credit (1350)
+    tax_amount: Decimal = Decimal("0")
     memo: Optional[str] = None
     reference: Optional[str] = None
     class_id: Optional[int] = None

@@ -6,6 +6,39 @@
  * owe, a sales receipt is money you took in — a paid receipt is neither.
  * One form, one save, scan attached as evidence.
  */
+/**
+ * bsq (Canada): the "HST included" box on Expenses and Credit Card Charges.
+ * Shown only when Settings > Tax on Purchases is recoverable. The 13%
+ * button works out the HST inside a tax-included total: total x 13 / 113.
+ */
+const HstField = {
+    RATE: 13,
+    async enabled() {
+        try {
+            const s = await API.get('/settings');
+            return (s && s.purchase_tax_recoverable) === 'true';
+        } catch (e) { return false; }
+    },
+    html(on) {
+        if (!on) return '';
+        return `<div class="form-group"><label>HST included</label>
+            <div style="display:flex; gap:6px; align-items:center;">
+                <input name="tax_amount" type="number" step="0.01" min="0" placeholder="0.00"
+                    title="The HST shown on the receipt. It is part of the amount, and is claimed back as an input tax credit.">
+                <button type="button" class="btn btn-sm btn-secondary" onclick="HstField.fill(this.form)"
+                    title="Work out ${HstField.RATE}% HST included in the amount">${HstField.RATE}%</button>
+            </div></div>`;
+    },
+    fill(form) {
+        const total = parseFloat(form.amount.value);
+        if (!(total > 0) || !form.tax_amount) return;
+        form.tax_amount.value = (Math.round(total * HstField.RATE / (100 + HstField.RATE) * 100) / 100).toFixed(2);
+    },
+    value(form) {
+        return form.tax_amount && form.tax_amount.value ? parseFloat(form.tax_amount.value) : 0;
+    },
+};
+
 const ExpensesPage = {
     _vendors: [],
     _accounts: [],
@@ -68,6 +101,8 @@ const ExpensesPage = {
         // 5100 Materials Cost as often as against an expense (W-L18).
         const expenseAccts = PurchaseAccounts.filter(accounts);
         const paidFrom = ExpensesPage.paidFromAccounts(accounts);
+        const hstOn = await HstField.enabled();
+        ExpensesPage._hstOn = hstOn;
         const acctOpt = a => `<option value="${a.id}">${accountLabel(a)}</option>`;
         const checking = paidFrom.find(a => /checking/i.test(a.name || '')) || paidFrom[0];
 
@@ -85,6 +120,7 @@ const ExpensesPage = {
                         <select name="paid_from_account_id" required>${paidFrom.map(acctOpt).join('')}</select></div>
                     <div class="form-group"><label>Amount *</label>
                         <input name="amount" type="number" step="0.01" min="0.01" required></div>
+                    ${HstField.html(hstOn)}
                     <div class="form-group"><label>Reference</label>
                         <input name="reference" placeholder="Receipt / check #"></div>
                     ${classGroup}${Nonprofit.functionFormGroupHtml()}${jobGroup}${costCodeGroup}${billableGroup}
@@ -118,6 +154,7 @@ const ExpensesPage = {
         if (fieldKey === 'date') return form.querySelector('[name="date"]');
         if (fieldKey === 'merchant') return VendorQuickAdd.nameInput('expense-vendor') || form.querySelector('#expense-vendor');
         if (fieldKey === 'total') return form.querySelector('[name="amount"]');
+        if (fieldKey === 'tax' && form.querySelector('[name="tax_amount"]')) return form.querySelector('[name="tax_amount"]');
         if (fieldKey === 'subtotal' || fieldKey === 'tax') return form.querySelector('[name="memo"]');
         if (fieldKey === 'reference') return form.querySelector('[name="reference"]');
         return null;
@@ -149,7 +186,8 @@ const ExpensesPage = {
         } else if (fieldKey === 'subtotal') {
             ExpensesPage._noteLine(form, 'Subtotal', value);
         } else if (fieldKey === 'tax') {
-            ExpensesPage._noteLine(form, 'Tax', value);
+            if (form.tax_amount) form.tax_amount.value = parseFloat(value).toFixed(2);
+            else ExpensesPage._noteLine(form, 'Tax', value);
         }
     },
 
@@ -175,7 +213,10 @@ const ExpensesPage = {
 
         const total = parseFloat(result.total || '0');
         if (total > 0) form.querySelector('[name="amount"]').value = total.toFixed(2);
-        if (result.tax_detected && result.tax) ExpensesPage._noteLine(form, 'Tax', result.tax);
+        if (result.tax_detected && result.tax) {
+            if (form.tax_amount) form.tax_amount.value = parseFloat(result.tax).toFixed(2);
+            else ExpensesPage._noteLine(form, 'Tax', result.tax);
+        }
     },
 
     async save(e) {
@@ -192,6 +233,7 @@ const ExpensesPage = {
                 expense_account_id: parseInt(form.expense_account_id.value),
                 paid_from_account_id: paidFrom,
                 amount: parseFloat(form.amount.value),
+                tax_amount: HstField.value(form),
                 reference: form.reference.value || null,
                 memo: form.memo.value || null,
                 class_id: classIdFromForm(form),
@@ -229,6 +271,7 @@ const ExpensesPage = {
                 <strong>Expense Account:</strong> ${escapeHtml(x.expense_account_name || '')}<br>
                 <strong>Paid From:</strong> ${escapeHtml(x.paid_from_account_name || '')}<br>
                 <strong>Amount:</strong> ${formatCurrency(x.amount)}<br>
+                ${x.tax_amount ? `<strong>HST (input tax credit):</strong> ${formatCurrency(x.tax_amount)}<br>` : ''}
                 ${x.reference ? `<strong>Reference:</strong> ${escapeHtml(x.reference)}<br>` : ''}
                 ${x.memo ? `<strong>Memo:</strong> ${escapeHtml(x.memo).replace(/\n/g, '<br>')}<br>` : ''}
             </div>

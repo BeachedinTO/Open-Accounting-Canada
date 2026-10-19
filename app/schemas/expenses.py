@@ -16,6 +16,8 @@ class ExpenseCreate(StrictModel):
     expense_account_id: int
     paid_from_account_id: int
     amount: Decimal
+    # bsq: HST included in `amount`, claimed as an input tax credit (1350)
+    tax_amount: Decimal = Decimal("0")
     reference: Optional[str] = Field(None, max_length=100)
     memo: Optional[str] = None
     class_id: Optional[int] = None
@@ -33,6 +35,7 @@ class ExpenseResponse(BaseModel):
     expense_account_name: str = ""
     paid_from_account_name: str = ""
     amount: float
+    tax_amount: float = 0.0  # bsq: HST input tax credit included in amount
     reference: str = ""
     memo: str = ""
     status: str = "recorded"  # "recorded" | "void"

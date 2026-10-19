@@ -130,6 +130,50 @@ def purchase_tax_split(db: Session, tax_amount, amounts: Sequence):
     return spread(tax, amounts), Decimal("0.00")
 
 
+def split_paid_amount(db: Session, amount, tax_amount):
+    """(expense part, HST part) of a purchase paid directly (an expense
+    paid by cheque or e-transfer, a credit-card charge) whose total
+    `amount` includes `tax_amount` of recoverable HST.
+
+    The HST part posts to 1350; the rest to the expense account. A tax
+    amount is refused unless Tax on Purchases is set to recoverable, so
+    nothing lands on 1350 that the HST return isn't meant to claim."""
+    amount = _q(Decimal(str(amount)))
+    tax = _q(Decimal(str(tax_amount or 0)))
+    if tax == 0:
+        return amount, Decimal("0.00")
+    if tax < 0:
+        raise HTTPException(status_code=400, detail="The HST amount can't be negative.")
+    if tax >= amount:
+        raise HTTPException(
+            status_code=400,
+            detail="The HST amount must be less than the total paid (the total includes the HST).",
+        )
+    if not purchase_tax_recoverable(db):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "HST on purchases is recorded only when Settings > Tax on "
+                "Purchases is set to 'Recoverable: HST input tax credits'."
+            ),
+        )
+    return amount - tax, tax
+
+
+def itc_amount_of(txn) -> Decimal:
+    """The HST input tax credit on one posted transaction (debits less
+    credits on 1350)."""
+    total = Decimal("0")
+    for ln in txn.lines:
+        if ln.account is not None and ln.account.account_number == ITC_ACCOUNT_NUMBER:
+            total += Decimal(str(ln.debit or 0)) - Decimal(str(ln.credit or 0))
+    return _q(total)
+
+
+def is_itc_line(ln) -> bool:
+    return ln.account is not None and ln.account.account_number == ITC_ACCOUNT_NUMBER
+
+
 def _line_label(line_no: int, description: Optional[str]) -> str:
     desc = (description or "").strip()
     if len(desc) > 40:
