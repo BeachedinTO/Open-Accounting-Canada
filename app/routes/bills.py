@@ -29,7 +29,8 @@ from app.services.closing_date import check_closing_date
 from app.services.request_utils import content_disposition
 from app.services.purchase_posting import (
     expense_account_for,
-    spread,
+    get_itc_account_id,
+    purchase_tax_split,
     unit_cost_with_tax,
 )
 
@@ -184,7 +185,9 @@ def _post_bill_lines(
     amounts = [_q(Decimal(str(ln.quantity)) * Decimal(str(ln.rate))) for ln in lines]
     # Tax on a purchase is part of what the lines cost: each line's debit
     # carries its share, and nothing is posted to Sales Tax Payable.
-    tax_shares = spread(tax_amount, amounts)
+    # bsq: with recoverable purchase tax (HST ITCs) the shares are 0 and
+    # `itc` is the whole tax, posted to 1350 instead.
+    tax_shares, itc = purchase_tax_split(db, tax_amount, amounts)
 
     journal_lines = []
     for i, line_data in enumerate(lines):
@@ -279,6 +282,15 @@ def _post_bill_lines(
 
     # Credit AP
     if ap_id and journal_lines:
+        if itc:
+            journal_lines.append(
+                {
+                    "account_id": get_itc_account_id(db),
+                    "debit": itc,
+                    "credit": Decimal("0"),
+                    "description": f"HST input tax credit - Bill {bill.bill_number}",
+                }
+            )
         journal_lines.append(
             {
                 "account_id": ap_id,

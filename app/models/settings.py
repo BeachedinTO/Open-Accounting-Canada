@@ -47,6 +47,9 @@ DEFAULT_SETTINGS = {
     "ask_password_on_start": "false",
     "default_terms": "Net 30",
     "default_tax_rate": "0.0",
+    # bsq (Canada): "true" posts tax on bills and vendor credits to 1350 HST
+    # Recoverable (ITCs) instead of adding it to what the purchase cost.
+    "purchase_tax_recoverable": "false",
     "invoice_prefix": "",
     "invoice_next_number": "1001",
     "estimate_prefix": "E-",

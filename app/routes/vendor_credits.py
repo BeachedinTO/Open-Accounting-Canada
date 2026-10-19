@@ -48,7 +48,8 @@ from app.services.closing_date import check_closing_date
 from app.services.numbering import next_vendor_credit_number
 from app.services.purchase_posting import (
     expense_account_for,
-    spread,
+    get_itc_account_id,
+    purchase_tax_split,
     unit_cost_with_tax,
 )
 
@@ -171,7 +172,9 @@ def create_vendor_credit(data: VendorCreditCreate, db: Session = Depends(get_db)
     # The mirror of a bill: tax on a purchase was part of what the lines
     # cost, so the tax coming back reduces those same lines. It never
     # credits Sales Tax Payable, which is the tax owed on sales.
-    tax_shares = spread(tax_amount, amounts)
+    # bsq: with recoverable purchase tax (HST ITCs) the shares are 0 and
+    # `itc` is the whole tax, posted to 1350 instead.
+    tax_shares, itc = purchase_tax_split(db, tax_amount, amounts)
 
     for i, line_data in enumerate(data.lines):
         amt = amounts[i]
@@ -249,6 +252,15 @@ def create_vendor_credit(data: VendorCreditCreate, db: Session = Depends(get_db)
                 }
             )
 
+    if itc:
+        journal_lines.append(
+            {
+                "account_id": get_itc_account_id(db),
+                "debit": Decimal("0"),
+                "credit": itc,
+                "description": f"HST input tax credit reversed - {vc.credit_number}",
+            }
+        )
     ap_id = get_ap_account_id(db)
     journal_lines.append(
         {

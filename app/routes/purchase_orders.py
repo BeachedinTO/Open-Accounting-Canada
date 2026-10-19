@@ -26,7 +26,8 @@ from app.services.numbering import next_po_number
 from app.services.request_utils import content_disposition
 from app.services.purchase_posting import (
     expense_account_for,
-    spread,
+    get_itc_account_id,
+    purchase_tax_split,
     unit_cost_with_tax,
 )
 
@@ -308,7 +309,9 @@ def convert_to_bill(
     lines = list(po.lines)
     amounts = [_q(Decimal(str(ln.quantity)) * Decimal(str(ln.rate))) for ln in lines]
     tax_amount = _q(po.tax_amount or 0)
-    tax_shares = spread(tax_amount, amounts)
+    # bsq: with recoverable purchase tax (HST ITCs) the shares are 0 and
+    # `itc` is the whole tax, posted to 1350 instead.
+    tax_shares, itc = purchase_tax_split(db, tax_amount, amounts)
 
     # Where each line posts, decided before anything is written so a
     # refused line leaves no bill behind.
@@ -405,6 +408,15 @@ def convert_to_bill(
             )
 
     if journal_lines:
+        if itc:
+            journal_lines.append(
+                {
+                    "account_id": get_itc_account_id(db),
+                    "debit": itc,
+                    "credit": Decimal("0"),
+                    "description": f"HST input tax credit - PO {po.po_number}",
+                }
+            )
         journal_lines.append(
             {
                 "account_id": ap_id,

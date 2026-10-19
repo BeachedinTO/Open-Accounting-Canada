@@ -172,6 +172,12 @@ const SettingsPage = {
                             <input name="default_tax_rate" type="number" min="0" max="100" step="0.0001"
                                 title="A percent from 0 to 100, up to four decimal places: 8.875 means 8.875%"
                                 value="${escapeHtml(SettingsPage._ratePercent(s.default_tax_rate))}"></div>
+                        <div class="form-group"><label>Tax on Purchases</label>
+                            <select name="purchase_tax_recoverable"
+                                title="Recoverable: tax on bills and vendor credits posts to 1350 HST Recoverable (ITCs), to claim on the HST return">
+                                <option value="false" ${s.purchase_tax_recoverable !== 'true' ? 'selected' : ''}>Part of the cost (US sales tax)</option>
+                                <option value="true" ${s.purchase_tax_recoverable === 'true' ? 'selected' : ''}>Recoverable: HST input tax credits</option>
+                            </select></div>
                         <div class="form-group"><label>${`${T('Invoice')} Prefix`}</label>
                             <input name="invoice_prefix" value="${escapeHtml(s.invoice_prefix || '')}" placeholder="e.g. INV-"></div>
                         <div class="form-group"><label>${`Next ${T('Invoice')} #`}</label>

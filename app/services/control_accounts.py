@@ -76,6 +76,10 @@ CONTROL_ACCOUNTS: dict[str, tuple[str, str]] = {
     "1100": ("Accounts Receivable", "what customers owe — every invoice and payment"),
     "1200": ("Undeposited Funds", "payments received but not yet deposited"),
     "1300": ("Inventory", "the inventory asset behind item purchases and sales"),
+    "1350": (
+        "HST Recoverable (ITCs)",
+        "GST/HST paid on purchases, claimed back as input tax credits",
+    ),
     "2000": ("Accounts Payable", "what you owe vendors — every bill and bill payment"),
     "2100": ("Credit Card", "credit-card charges and the card's balance"),
     "2200": ("Sales Tax Payable", "sales tax collected on invoices and receipts"),

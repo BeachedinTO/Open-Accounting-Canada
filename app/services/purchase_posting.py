@@ -18,6 +18,13 @@
 # touches 2200 Sales Tax Payable, which holds the tax the business collected
 # from its own customers and owes the state: debiting it with tax paid to a
 # supplier made Pay Sales Tax offer $0.33 where $59.57 was owed (macbase1 F9).
+#
+# bsq (Canada): with the setting `purchase_tax_recoverable` on, tax on a
+# purchase is GST/HST the business claims back as an input tax credit. It is
+# then NOT part of the cost: the lines post at their pre-tax amounts and the
+# whole tax posts to 1350 HST Recoverable (ITCs), an asset, debited on a bill
+# and credited on a vendor credit. It still never touches 2200. Off (the
+# default), everything above is unchanged.
 # ============================================================================
 
 from decimal import Decimal
@@ -75,6 +82,52 @@ def unit_cost_with_tax(amount, tax_share, quantity, rate) -> Decimal:
     if share == 0 or qty <= 0:
         return Decimal(str(rate))
     return quantize_to((Decimal(str(amount)) + share) / qty, COST_Q)
+
+
+ITC_ACCOUNT_NUMBER = "1350"
+ITC_ACCOUNT_NAME = "HST Recoverable (ITCs)"
+
+
+def purchase_tax_recoverable(db: Session) -> bool:
+    """True when tax on purchases is claimed back (GST/HST input tax
+    credits) rather than being part of what the purchase cost."""
+    from app.services.settings_service import get_setting_raw
+
+    return (get_setting_raw(db, "purchase_tax_recoverable") or "").lower() == "true"
+
+
+def get_itc_account_id(db: Session) -> int:
+    """1350 HST Recoverable (ITCs), created the first time it is needed."""
+    from app.models.accounts import AccountType
+
+    acct = (
+        db.query(Account)
+        .filter(Account.account_number == ITC_ACCOUNT_NUMBER)
+        .first()
+    )
+    if acct is None:
+        acct = Account(
+            name=ITC_ACCOUNT_NAME,
+            account_number=ITC_ACCOUNT_NUMBER,
+            account_type=AccountType.ASSET,
+            is_system=False,
+            balance=Decimal("0"),
+        )
+        db.add(acct)
+        db.flush()
+    return acct.id
+
+
+def purchase_tax_split(db: Session, tax_amount, amounts: Sequence):
+    """(per-line tax shares, recoverable tax) for a purchase.
+
+    Tax not recoverable: shares spread over the lines (they carry it as
+    cost), recoverable tax 0. Recoverable: every share 0, and the whole tax
+    is returned to post to the ITC account."""
+    tax = _q(Decimal(str(tax_amount or 0)))
+    if tax != 0 and purchase_tax_recoverable(db):
+        return [Decimal("0.00") for _ in amounts], tax
+    return spread(tax, amounts), Decimal("0.00")
 
 
 def _line_label(line_no: int, description: Optional[str]) -> str:

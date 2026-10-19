@@ -379,5 +379,6 @@ def test_the_control_registry_is_fifteen_accounts():
     where a change to the registry will trip it."""
     from app.services.control_accounts import CONTROL_ACCOUNTS
 
-    assert len(CONTROL_ACCOUNTS) == 15
+    # bsq: 16 with 1350 HST Recoverable (ITCs) added.
+    assert len(CONTROL_ACCOUNTS) == 16
     assert "3200" in CONTROL_ACCOUNTS
