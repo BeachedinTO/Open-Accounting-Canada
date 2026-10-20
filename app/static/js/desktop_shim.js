@@ -239,7 +239,7 @@
         // Anything else (print-preview HTML, etc.)
         const html = await response.text();
         if (window.pywebview && window.pywebview.api && window.pywebview.api.open_document_html) {
-            await window.pywebview.api.open_document_html('SlowBooks Pro 2026', html);
+            await window.pywebview.api.open_document_html('Open Accounting Canada', html);
         } else {
             bridgeMissing('open the document');
         }

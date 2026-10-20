@@ -5,9 +5,7 @@ name: Weekly pip-audit
 # in the OSV / PyPI databases.
 
 on:
-  schedule:
-    # Sundays at 14:00 UTC — quiet time, before the Monday work week.
-    - cron: "0 14 * * 0"
+  # bsq: run by hand only on this private copy
   workflow_dispatch:
 
 jobs:

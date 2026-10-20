@@ -11,16 +11,16 @@
 #endif
 
 [Setup]
-AppId={{f67ccf1c-2072-4f4a-9102-4e3897758a97}
-AppName=SlowBooks Pro 2026
+AppId={{a0829f2f-e4b8-4db6-b804-75526ee3a527}
+AppName=Open Accounting Canada
 AppVersion={#AppVersion}
-AppPublisher=VonHoltenCodes
+AppPublisher=bsq Landscape Architects (based on SlowBooks Pro 2026 by Trent Von Holten)
 AppPublisherURL=https://github.com/VonHoltenCodes/SlowBooks-Pro-2026
-DefaultDirName={autopf}\SlowBooks Pro 2026
-DefaultGroupName=SlowBooks Pro 2026
+DefaultDirName={autopf}\Open Accounting Canada
+DefaultGroupName=Open Accounting Canada
 UninstallDisplayIcon={app}\SlowBooksPro.exe
 OutputDir=.
-OutputBaseFilename=SlowBooksPro-Setup-x64
+OutputBaseFilename=OpenAccountingCanada-Setup-x64
 Compression=lzma2
 SolidCompression=yes
 ArchitecturesAllowed=x64
@@ -53,9 +53,9 @@ Source: "..\..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"
 Source: "MicrosoftEdgeWebView2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 [Icons]
-Name: "{group}\SlowBooks Pro 2026"; Filename: "{app}\SlowBooksPro.exe"
-Name: "{group}\Uninstall SlowBooks Pro 2026"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\SlowBooks Pro 2026"; Filename: "{app}\SlowBooksPro.exe"; Tasks: desktopicon
+Name: "{group}\Open Accounting Canada"; Filename: "{app}\SlowBooksPro.exe"
+Name: "{group}\Uninstall Open Accounting Canada"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\Open Accounting Canada"; Filename: "{app}\SlowBooksPro.exe"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
@@ -64,7 +64,7 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 Filename: "{tmp}\MicrosoftEdgeWebView2Setup.exe"; Parameters: "/silent /install"; \
   StatusMsg: "Installing the Microsoft WebView2 runtime (app window component)..."; \
   Check: not IsWebView2Installed; Flags: waituntilterminated
-Filename: "{app}\SlowBooksPro.exe"; Description: "Launch SlowBooks Pro 2026"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\SlowBooksPro.exe"; Description: "Launch Open Accounting Canada"; Flags: nowait postinstall skipifsilent
 
 [Code]
 // WebView2 Evergreen runtime detection — same registry keys Microsoft

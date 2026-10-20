@@ -1,0 +1,170 @@
+name: Open Accounting Canada (Windows installer)
+
+# bsq: builds the Canadian edition's Windows installer on every push to the
+# bsq-canada branch, or by hand from the Actions tab (Run workflow).
+#
+# Adapted from the SlowBooks Pro windows.yml: PyInstaller onedir bundle ->
+# smoke test -> portable .zip + Inno Setup installer -> build artifact.
+# Unsigned: the original's code-signing steps used the SlowBooks author's
+# own Azure certificate, which this copy can't use, so Windows shows
+# "unknown publisher" when the installer runs. No GitHub Release is made.
+#
+# Standard CPython (pywebview needs pythonnet/.NET); MSYS2 is only a DLL
+# donor for WeasyPrint's Pango/GObject/Fontconfig natives (PDFs).
+
+on:
+  push:
+    branches: [bsq-canada]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bsq-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Windows installer + zip
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'  # pythonnet-safe; 3.13 unverified
+
+      - name: Read version
+        shell: pwsh
+        run: |
+          $ver = (Select-String -Path app/__init__.py -Pattern '__version__ = "(.+)"').Matches.Groups[1].Value
+          if (-not $ver) { Write-Error "Could not parse __version__ from app/__init__.py"; exit 1 }
+          Write-Host "Version: $ver"
+          "APP_VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Set up MSYS2 (WeasyPrint native DLL donor)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-pango
+            mingw-w64-x86_64-fontconfig
+            mingw-w64-x86_64-ntldd-git
+
+      - name: Stage WeasyPrint native DLLs
+        shell: msys2 {0}
+        run: |
+          set -e
+          mkdir -p packaging/windows/gtk-dlls
+          cd packaging/windows/gtk-dlls
+          for lib in libgobject-2.0-0 libglib-2.0-0 libpango-1.0-0 \
+                     libpangoft2-1.0-0 libharfbuzz-0 libharfbuzz-subset-0 \
+                     libfontconfig-1; do
+            cp "/mingw64/bin/$lib.dll" .
+          done
+          for lib in libintl-8 libiconv-2 libpcre2-8-0 libffi-8 \
+                     libgmodule-2.0-0 libfribidi-0 libthai-0 libdatrie-1 \
+                     libfreetype-6 libbrotlidec libbrotlicommon libbz2-1 \
+                     libpng16-16 libexpat-1 libgraphite2 zlib1 \
+                     libwinpthread-1 libgcc_s_seh-1 libstdc++-6; do
+            cp "/mingw64/bin/$lib.dll" . 2>/dev/null || true
+          done
+          for _ in 1 2 3; do  # iterate until the closure stops growing
+            deps=$( (for d in *.dll; do ntldd -R "$d" 2>/dev/null || true; done) \
+              | tr '\\' '/' \
+              | grep -Eio '[a-z]:/[a-z0-9_./+-]*/mingw64/bin/[a-z0-9_.+-]+\.dll' \
+              | sort -u || true)
+            for dep in $deps; do cp -n "$dep" . 2>/dev/null || true; done
+          done
+          count=$(ls -1 *.dll | wc -l)
+          echo "Staged $count DLLs:"; ls -1
+          if [ "$count" -lt 15 ]; then
+            echo "ERROR: dependency closure looks incomplete"; exit 1
+          fi
+
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-desktop.txt `
+            -r packaging/windows/requirements-ocr.txt `
+            pyinstaller pyinstaller-hooks-contrib pillow
+          python -c "import importlib.metadata as m, collections, sys; c = collections.Counter(d.metadata['Name'].lower() for d in m.distributions()); dup = {k: v for k, v in c.items() if v > 1}; print('duplicate distributions:', dup or 'none'); sys.exit(1 if dup else 0)"
+
+      - name: The encrypted-file driver's wheel installed
+        shell: pwsh
+        run: python -c "import sqlcipher3; print('sqlcipher', sqlcipher3.connect(':memory:').execute('PRAGMA cipher_version').fetchone()[0])"
+
+      - name: Build the .ico from the icon asset
+        shell: pwsh
+        run: |
+          python -c "from PIL import Image; Image.open('assets/icon-256.png').save('packaging/windows/slowbookspro.ico', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+
+      - name: Build the bundle (PyInstaller)
+        shell: pwsh
+        run: |
+          cd packaging/windows
+          pyinstaller --noconfirm --clean SlowBooksPro.spec
+
+      - name: Smoke test the frozen bundle
+        timeout-minutes: 8
+        shell: pwsh
+        run: |
+          $env:SLOWBOOKS_DATA_DIR = "$env:RUNNER_TEMP\slowbooks-smoke\data"
+          $exe = "packaging\windows\dist\SlowBooksPro\SlowBooksPro.exe"
+          $p = Start-Process -FilePath $exe -ArgumentList '--smoke-test' -PassThru -Wait -NoNewWindow
+          $log = "$env:SLOWBOOKS_DATA_DIR\launcher.log"
+          if (Test-Path $log) { Get-Content $log } else { Write-Host "no launcher.log written" }
+          if ($p.ExitCode -ne 0) { Write-Error "Smoke test failed (exit $($p.ExitCode))"; exit 1 }
+          Write-Host "Smoke test passed."
+
+      - name: Verify the exe's version resource
+        shell: pwsh
+        run: |
+          $exe = "packaging\windows\dist\SlowBooksPro\SlowBooksPro.exe"
+          $vi = (Get-Item $exe).VersionInfo
+          Write-Host "FileVersion=$($vi.FileVersion) ProductVersion=$($vi.ProductVersion) ProductName=$($vi.ProductName)"
+          if ($vi.ProductVersion -ne $env:APP_VERSION -or -not $vi.ProductName) {
+            Write-Error "version resource missing or wrong (expected $env:APP_VERSION)"; exit 1
+          }
+
+      - name: Package the portable .zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path packaging\windows\dist\SlowBooksPro\* -DestinationPath OpenAccountingCanada-windows-x64.zip -Force
+
+      - name: Fetch WebView2 Evergreen bootstrapper
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile packaging\windows\MicrosoftEdgeWebView2Setup.exe
+          if ((Get-Item packaging\windows\MicrosoftEdgeWebView2Setup.exe).Length -lt 500KB) { Write-Error "bootstrapper download looks wrong"; exit 1 }
+
+      - name: Build the installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          & $iscc "/DAppVersion=$env:APP_VERSION" packaging\windows\SlowBooksPro.iss
+          Copy-Item packaging\windows\OpenAccountingCanada-Setup-x64.exe .\OpenAccountingCanada-Setup-x64.exe
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $lines = foreach ($f in 'OpenAccountingCanada-Setup-x64.exe', 'OpenAccountingCanada-windows-x64.zip') {
+            "{0}  {1}" -f (Get-FileHash $f -Algorithm SHA256).Hash.ToLower(), $f
+          }
+          [IO.File]::WriteAllText("$PWD\SHA256SUMS.windows", ($lines -join "`n") + "`n")
+          Get-Content SHA256SUMS.windows
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenAccountingCanada-windows-x64
+          retention-days: 30
+          path: |
+            OpenAccountingCanada-Setup-x64.exe
+            OpenAccountingCanada-windows-x64.zip
+            SHA256SUMS.windows

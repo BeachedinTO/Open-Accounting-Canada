@@ -373,7 +373,7 @@
             'style="background:#fff;color:#111;padding:28px 28px 24px;border-radius:8px;' +
             'min-width:380px;max-width:440px;width:100%;' +
             'box-shadow:0 20px 60px rgba(0,0,0,0.4);">' +
-            '<h2 style="margin:0 0 6px;font-size:22px;">Set up Slowbooks Pro 2026</h2>' +
+            '<h2 style="margin:0 0 6px;font-size:22px;">Set up Open Accounting Canada</h2>' +
             '<p style="margin:0 0 8px;color:#555;font-size:13px;line-height:1.5;">' +
             "Just enough to get you in. You can configure everything else later." +
             "</p>" +

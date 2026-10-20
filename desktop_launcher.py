@@ -495,7 +495,7 @@ def launch_company(
     # for the port and fail confusingly -- say what's actually wrong.
     if _server_already_running(port):
         raise RuntimeError(
-            "SlowBooks Pro is already running (another window is open). "
+            "Open Accounting Canada is already running (another window is open). "
             "Close it first -- or end the SlowBooksPro process in Task "
             "Manager if no window is visible -- then try again."
         )
@@ -527,7 +527,7 @@ PICKER_HTML = """<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>SlowBooks Pro 2026</title>
+<title>Open Accounting Canada</title>
 <style>
   body { font-family: "Segoe UI", system-ui, sans-serif; background: #f4f6f8;
          margin: 0; display: flex; justify-content: center; }
@@ -556,7 +556,7 @@ PICKER_HTML = """<!DOCTYPE html>
 </head>
 <body>
 <div class="wrap">
-  <h1>SlowBooks Pro 2026</h1>
+  <h1>Open Accounting Canada</h1>
   <div class="sub">Choose a company to open, or create a new one.</div>
   <div id="list"></div>
   <div class="newco">
@@ -1082,7 +1082,7 @@ class PickerApi:
         try:
             import webview
 
-            webview.create_window(title or "SlowBooks Pro 2026", html=html)
+            webview.create_window(title or "Open Accounting Canada", html=html)
         except Exception as exc:
             return {"success": False, "error": str(exc)}
         return {"success": True}
@@ -1148,7 +1148,7 @@ class PickerApi:
                 url, api = _write_viewer(dest, title).as_uri(), DocumentViewerApi(dest)
             except OSError:
                 url, api = dest.as_uri(), None
-            webview.create_window(title or "SlowBooks Pro 2026", url, js_api=api)
+            webview.create_window(title or "Open Accounting Canada", url, js_api=api)
         except Exception as exc:
             return {"success": False, "error": str(exc)}
         result = {"success": True, "path": str(dest)}
@@ -1367,7 +1367,7 @@ def _no_webview2_message() -> str:
     """
     if FROZEN:
         return (
-            "SlowBooks Pro needs the Microsoft Edge WebView2 runtime to show "
+            "Open Accounting Canada needs the Microsoft Edge WebView2 runtime to show "
             "its window, and this computer does not have it.\n"
             "\n"
             "Two ways to fix that:\n"
@@ -1384,7 +1384,7 @@ def _no_webview2_message() -> str:
     )
 
 
-def _ask_yes_no(message: str, title: str = "SlowBooks Pro 2026") -> bool:
+def _ask_yes_no(message: str, title: str = "Open Accounting Canada") -> bool:
     """A native Yes/No box (Windows only; False anywhere it cannot ask)."""
     if sys.platform != "win32":
         return False
@@ -1402,7 +1402,7 @@ def _ask_yes_no(message: str, title: str = "SlowBooks Pro 2026") -> bool:
         return False
 
 
-def _hold_until_dismissed(message: str, title: str = "SlowBooks Pro 2026") -> None:
+def _hold_until_dismissed(message: str, title: str = "Open Accounting Canada") -> None:
     """Block on a native OK box (Windows); elsewhere, wait for Ctrl+C."""
     if sys.platform == "win32":
         try:
@@ -1429,7 +1429,7 @@ def _run_without_webview2(port: int, log_fh=None) -> int:
     (issue #149) and is recorded as uncovered, not as passed."""
     msg = _no_webview2_message()
     print(msg)
-    if not _ask_yes_no(msg + "\nOpen SlowBooks Pro in your web browser instead?"):
+    if not _ask_yes_no(msg + "\nOpen Open Accounting Canada in your web browser instead?"):
         _show_error_box(msg)
         return 1
     return run_in_browser(port, log_fh)
@@ -1443,13 +1443,13 @@ def run_in_browser(port: int, log_fh=None) -> int:
     if proc is None:
         return 1
     url = f"http://127.0.0.1:{port}"
-    print(f"SlowBooks Pro is running at {url}")
+    print(f"Open Accounting Canada is running at {url}")
     webbrowser.open(url)
     try:
         _hold_until_dismissed(
-            f"SlowBooks Pro is open in your web browser at {url}\n"
+            f"Open Accounting Canada is open in your web browser at {url}\n"
             "\n"
-            "Keep this box open while you work. Click OK to stop SlowBooks Pro."
+            "Keep this box open while you work. Click OK to stop Open Accounting Canada."
         )
     finally:
         stop_server(proc)
@@ -1468,7 +1468,7 @@ def _show_error_box(message: str) -> None:
                     "-e",
                     "on run argv",
                     "-e",
-                    'display alert "SlowBooks Pro 2026" message (item 1 of argv) as critical',
+                    'display alert "Open Accounting Canada" message (item 1 of argv) as critical',
                     "-e",
                     "end run",
                     "--",
@@ -1485,7 +1485,7 @@ def _show_error_box(message: str) -> None:
 
             MB_ICONERROR = 0x10
             ctypes.windll.user32.MessageBoxW(
-                0, message, "SlowBooks Pro 2026", MB_ICONERROR
+                0, message, "Open Accounting Canada", MB_ICONERROR
             )
     except Exception:
         pass
@@ -1573,7 +1573,7 @@ def run_window(port: int, log_fh=None) -> int:
 
     api = PickerApi(port, log_fh)
     api._window = webview.create_window(
-        "SlowBooks Pro 2026",
+        "Open Accounting Canada",
         html=PICKER_HTML,
         js_api=api,
         width=1280,
@@ -1688,7 +1688,7 @@ def run_headless(port: int, bind_host: str = "127.0.0.1") -> int:
         return 1
 
     if bind_host == "127.0.0.1":
-        print(f"SlowBooks Pro is running at http://127.0.0.1:{port}")
+        print(f"Open Accounting Canada is running at http://127.0.0.1:{port}")
     else:
         _announce_serve_lan(port)
     print("Press Ctrl+C to stop.")
@@ -2244,7 +2244,7 @@ def main() -> int:
         if log_fh:
             log_fh.write(tb + "\n")
         _show_error_box(
-            "SlowBooks Pro hit an unexpected error and could not start.\n\n"
+            "Open Accounting Canada hit an unexpected error and could not start.\n\n"
             f"Details were written to:\n{log_path}"
         )
         return 1

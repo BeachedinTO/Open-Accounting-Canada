@@ -13,11 +13,11 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-PRODUCT_NAME = "SlowBooks Pro 2026"
+PRODUCT_NAME = "Open Accounting Canada"  # bsq: based on SlowBooks Pro 2026
 COMPANY_NAME = "VonHoltenCodes"
 INTERNAL_NAME = "SlowBooksPro"
 ORIGINAL_FILENAME = "SlowBooksPro.exe"
-DESCRIPTION = "SlowBooks Pro 2026 — bookkeeping"
+DESCRIPTION = "Open Accounting Canada — bookkeeping (based on SlowBooks Pro 2026)"
 COPYRIGHT = "Copyright © VonHoltenCodes. MIT License."
 
 
