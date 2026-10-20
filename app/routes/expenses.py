@@ -21,6 +21,7 @@ from app.services.purchase_posting import (
     get_itc_account_id,
     is_itc_line,
     itc_amount_of,
+    resolve_job,
     split_paid_amount,
 )
 
@@ -227,7 +228,7 @@ def create_expense(data: ExpenseCreate, db: Session = Depends(get_db)):
         source_id=vendor.id if vendor else None,
         reference=data.reference or "",
         class_id=data.class_id,
-        job_id=data.job_id,
+        job_id=resolve_job(db, data.job_id, data.customer_id),
     )
     db.commit()
     db.refresh(txn)

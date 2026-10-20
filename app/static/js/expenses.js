@@ -102,7 +102,8 @@ const ExpensesPage = {
         ExpensesPage._vendors = vendors;
         ExpensesPage._accounts = accounts;
         const classGroup = await classFormGroupHtml();
-        const jobGroup = await jobFormGroupHtml(null);
+        await CustomerJob.load();
+        const jobGroup = CustomerJob.groupHtml(null);  // bsq: Customer:Job
         await CostCodes.load();
         const costCodeGroup = CostCodes.any() ? `<div class="form-group"><label>Cost Code</label><select name="cost_code_id">${CostCodes.optionsHtml(null)}</select></div>` : '';
         const billableGroup = `<div class="form-group"><label>Billable</label><label style="font-weight:normal;"><input type="checkbox" name="is_billable"> Bill this cost to the job's customer</label></div>`;
@@ -247,7 +248,7 @@ const ExpensesPage = {
                 memo: form.memo.value || null,
                 class_id: classIdFromForm(form),
                 ...Nonprofit.formPayload(form),
-                job_id: jobIdFromForm(form),
+                ...CustomerJob.parse(form.customer_job ? form.customer_job.value : ''),
                 cost_code_id: form.cost_code_id ? (form.cost_code_id.value ? parseInt(form.cost_code_id.value) : null) : null,
                 is_billable: !!(form.is_billable && form.is_billable.checked),
             });

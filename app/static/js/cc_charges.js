@@ -45,7 +45,8 @@ const CCChargesPage = {
             `<option value="${a.id}" ${a.account_number === '2100' ? 'selected' : ''}>${accountLabel(a)}</option>`
         ).join('');
         const classGroup = await classFormGroupHtml();
-        const jobGroup = await jobFormGroupHtml(null);
+        await CustomerJob.load();
+        const jobGroup = CustomerJob.groupHtml(null);  // bsq: Customer:Job
         const acctOpts = PurchaseAccounts.options(accounts);
         const hstOn = await HstField.enabled();
 
@@ -92,7 +93,7 @@ const CCChargesPage = {
                 memo: form.memo.value || null,
                 class_id: classIdFromForm(form),
                 ...Nonprofit.formPayload(form),
-                job_id: jobIdFromForm(form),
+                ...CustomerJob.parse(form.customer_job ? form.customer_job.value : ''),
             });
             toast('Credit card charge recorded');
             closeModal();

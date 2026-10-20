@@ -91,9 +91,14 @@ ITC_ACCOUNT_NAME = "HST Recoverable (ITCs)"
 def purchase_tax_recoverable(db: Session) -> bool:
     """True when tax on purchases is claimed back (GST/HST input tax
     credits) rather than being part of what the purchase cost."""
+    from app.models.settings import DEFAULT_SETTINGS
     from app.services.settings_service import get_setting_raw
 
-    return (get_setting_raw(db, "purchase_tax_recoverable") or "").lower() == "true"
+    # an unsaved setting means the default, as the Settings screen shows it
+    value = get_setting_raw(db, "purchase_tax_recoverable")
+    if value is None:
+        value = DEFAULT_SETTINGS.get("purchase_tax_recoverable", "false")
+    return (value or "").lower() == "true"
 
 
 def get_itc_account_id(db: Session) -> int:
@@ -172,6 +177,48 @@ def itc_amount_of(txn) -> Decimal:
 
 def is_itc_line(ln) -> bool:
     return ln.account is not None and ln.account.account_number == ITC_ACCOUNT_NUMBER
+
+
+def job_for_customer(db: Session, customer_id: int) -> int:
+    """bsq: a cost charged to a customer (not one of its jobs) goes to the
+    customer's own job, named after the customer, made the first time it is
+    needed. Job costing and billable costs follow jobs, so this keeps them
+    working when a purchase names only the customer."""
+    from sqlalchemy import func
+
+    from app.models.contacts import Customer
+    from app.models.jobs import Job
+
+    customer = db.get(Customer, customer_id)
+    if customer is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    job = (
+        db.query(Job)
+        .filter(Job.customer_id == customer.id, func.lower(Job.name) == customer.name.lower())
+        .order_by(Job.id)
+        .first()
+    )
+    if job is None:
+        job = Job(
+            customer_id=customer.id,
+            name=customer.name,
+            status="in_progress",
+            is_active=True,
+            notes="Made when a cost was first charged to this customer.",
+        )
+        db.add(job)
+        db.flush()
+    return job.id
+
+
+def resolve_job(db: Session, job_id: Optional[int], customer_id: Optional[int]) -> Optional[int]:
+    """The job a purchase line is charged to: the job named, else the
+    customer's own job when only a customer is named, else none."""
+    if job_id:
+        return job_id
+    if customer_id:
+        return job_for_customer(db, customer_id)
+    return None
 
 
 def _line_label(line_no: int, description: Optional[str]) -> str:

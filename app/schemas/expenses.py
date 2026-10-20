@@ -22,6 +22,7 @@ class ExpenseCreate(StrictModel):
     memo: Optional[str] = None
     class_id: Optional[int] = None
     job_id: Optional[int] = None
+    customer_id: Optional[int] = None  # bsq: charges the customer's own job
     cost_code_id: Optional[int] = None
     function: Optional[str] = None  # nonprofit: program | management | fundraising
     is_billable: bool = False

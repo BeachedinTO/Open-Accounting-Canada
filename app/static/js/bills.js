@@ -238,7 +238,10 @@ const BillsPage = {
             : (hstOn ? (parseFloat(coSettings.default_tax_rate || '0') || 0) / 100 : 0);
         BillsPage.lineCount = 1;
         const classGroup = await classFormGroupHtml(bill ? bill.class_id : undefined);
-        const jobGroup = await jobFormGroupHtml(bill ? bill.job_id : null);
+        // bsq: the customer or job goes on each line (Customer:Job column);
+        // a bill-wide job is shown only on a bill that already has one.
+        const jobGroup = bill && bill.job_id ? await jobFormGroupHtml(bill.job_id) : '';
+        await CustomerJob.load();
         await CostCodes.load();
         await Nonprofit.loadFunds();
 
@@ -272,7 +275,7 @@ const BillsPage = {
                 </div>
                 <h3 style="margin:12px 0 8px;font-size:14px;">Line Items</h3>
                 <div class="table-container table-container--scroll"><table class="line-items-table bill-lines-table">
-                    <thead><tr><th scope="col">Item</th><th scope="col" title="Where the line is recorded">Account</th><th scope="col">Description</th>${CostCodes.headHtml()}${Nonprofit.headHtml()}<th scope="col" title="Billable to the job's customer">Bill?</th><th scope="col" class="col-qty">Qty</th><th scope="col" class="col-rate">Rate</th><th scope="col" class="col-amount">Amount</th></tr></thead>
+                    <thead><tr><th scope="col">Item</th><th scope="col" title="Where the line is recorded">Account</th><th scope="col">Description</th><th scope="col" title="The customer or job this cost is for">${T('Customer')}:${T('Job')}</th>${CostCodes.headHtml()}${Nonprofit.headHtml()}<th scope="col" title="Billable to the job's customer">Bill?</th><th scope="col" class="col-qty">Qty</th><th scope="col" class="col-rate">Rate</th><th scope="col" class="col-amount">Amount</th></tr></thead>
                     <tbody id="bill-lines">${bill ? '' : BillsPage.lineHtml(0)}</tbody>
                 </table></div>
                 <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px;" onclick="BillsPage.addLine()">+ Add Line</button>
@@ -320,6 +323,7 @@ const BillsPage = {
                 <td><select class="line-item" onchange="BillsPage.itemSelected(this)"><option value="">--</option>${itemOpts}</select></td>
                 <td><select class="line-account"${stock ? ' disabled title="Stock items are recorded in Inventory"' : ''}><option value="">Choose...</option>${acctOpts}</select></td>
                 <td><input class="line-desc" value="${escapeHtml(l.description || '')}"></td>
+                <td><select class="line-cj" aria-label="${T('Customer')}:${T('Job')}">${CustomerJob.options(l.job_id)}</select></td>
                 ${CostCodes.cellHtml('line-cost-code', l.cost_code_id)}${Nonprofit.cellHtml('line-function', l.function, l.class_id)}
                 <td style="text-align:center;"><input type="checkbox" class="line-billable" title="Billable"${l.is_billable ? ' checked' : ''}></td>
                 <td><input class="line-qty" type="number" step="0.0001" value="${line ? Number(l.quantity) : 1}" oninput="BillsPage.recalc()"></td>
@@ -505,6 +509,7 @@ const BillsPage = {
                 item_id: row.querySelector('.line-item')?.value ? parseInt(row.querySelector('.line-item').value) : null,
                 account_id: accountId,
                 description: row.querySelector('.line-desc')?.value || '',
+                ...CustomerJob.parse(row.querySelector('.line-cj')?.value),
                 quantity: parseFloat(row.querySelector('.line-qty')?.value) || 1,
                 rate: parseFloat(row.querySelector('.line-rate')?.value) || 0,
                 cost_code_id: CostCodes.fromRow(row, 'line-cost-code'),

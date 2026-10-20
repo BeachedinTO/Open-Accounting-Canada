@@ -19,6 +19,7 @@ class CCChargeCreate(StrictModel):
     reference: Optional[str] = None
     class_id: Optional[int] = None
     job_id: Optional[int] = None
+    customer_id: Optional[int] = None  # bsq: charges the customer's own job
     function: Optional[str] = None  # nonprofit: program | management | fundraising
 
 

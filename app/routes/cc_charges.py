@@ -19,6 +19,7 @@ from app.services.purchase_posting import (
     get_itc_account_id,
     is_itc_line,
     itc_amount_of,
+    resolve_job,
     split_paid_amount,
 )
 from app.models.transactions import Transaction
@@ -138,7 +139,7 @@ def create_cc_charge(data: CCChargeCreate, db: Session = Depends(get_db)):
         source_type="cc_charge",
         reference=data.reference or "",
         class_id=data.class_id,
-        job_id=data.job_id,
+        job_id=resolve_job(db, data.job_id, data.customer_id),
     )
 
     db.commit()

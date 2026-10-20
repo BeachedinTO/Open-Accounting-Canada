@@ -1120,6 +1120,58 @@ function classIdFromForm(form) {
 // customer is cleared. Returns '' when the company has no jobs yet — the
 // field simply doesn't exist.
 // ---------------------------------------------------------------------------
+/**
+ * bsq: the Customer:Job picker on purchases (bill lines, expenses, card
+ * charges), as in QuickBooks. Lists every active customer, with its jobs
+ * under it. A customer alone is sent as customer_id and charged to the
+ * customer's own job (made on first use, named after the customer); a job
+ * is sent as job_id.
+ */
+const CustomerJob = {
+    _data: { customers: [], jobs: [] },
+    async load() {
+        try {
+            const [customers, jobs] = await Promise.all([
+                API.get('/customers?active_only=true'),
+                API.get('/jobs'),
+            ]);
+            CustomerJob._data = { customers: customers || [], jobs: jobs || [] };
+        } catch (e) { CustomerJob._data = { customers: [], jobs: [] }; }
+        return CustomerJob._data;
+    },
+    options(selectedJobId) {
+        const { customers, jobs } = CustomerJob._data;
+        const sel = selectedJobId ? Number(selectedJobId) : null;
+        let found = !sel;
+        let html = '<option value="">—</option>';
+        for (const c of customers) {
+            const own = jobs.filter(j => j.customer_id === c.id);
+            const home = own.find(j => (j.name || '').toLowerCase() === (c.name || '').toLowerCase());
+            const val = home ? `j:${home.id}` : `c:${c.id}`;
+            const isSel = home && home.id === sel;
+            if (isSel) found = true;
+            html += `<option value="${val}"${isSel ? ' selected' : ''}>${escapeHtml(c.name)}</option>`;
+            for (const j of own) {
+                if (j === home) continue;
+                if (j.id === sel) found = true;
+                html += `<option value="j:${j.id}"${j.id === sel ? ' selected' : ''}>&nbsp;&nbsp;${escapeHtml(c.name)} : ${escapeHtml(j.name)}</option>`;
+            }
+        }
+        // a job no longer listed (inactive customer or job) still shows
+        if (!found) html += `<option value="j:${sel}" selected>Job #${sel}</option>`;
+        return html;
+    },
+    groupHtml(selectedJobId) {
+        return `<div class="form-group"><label>${T('Customer')}:${T('Job')}</label>
+            <select name="customer_job" title="The customer or job this cost is for">${CustomerJob.options(selectedJobId)}</select></div>`;
+    },
+    parse(value) {
+        if (!value) return { job_id: null, customer_id: null };
+        const [kind, id] = String(value).split(':');
+        return kind === 'j' ? { job_id: parseInt(id), customer_id: null } : { job_id: null, customer_id: parseInt(id) };
+    },
+};
+
 async function jobFormGroupHtml(selectedId, customerSelectId) {
     let jobs = [];
     try { jobs = await API.get('/jobs'); } catch (e) { return ''; }

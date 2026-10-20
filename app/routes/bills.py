@@ -31,6 +31,7 @@ from app.services.purchase_posting import (
     expense_account_for,
     get_itc_account_id,
     purchase_tax_split,
+    resolve_job,
     unit_cost_with_tax,
 )
 
@@ -170,6 +171,12 @@ def _post_bill_lines(
     # A missing Accounts Payable account is the first thing to say (#119),
     # ahead of anything about one line.
     ap_id = get_ap_account_id(db)
+
+    # bsq: a line that names a customer but no job is charged to the
+    # customer's own job.
+    for ln in lines:
+        if not getattr(ln, "job_id", None) and getattr(ln, "customer_id", None):
+            ln.job_id = resolve_job(db, None, ln.customer_id)
 
     # Phase 11: track which lines are inventory receipts so we can write
     # InventoryMovement rows after the JE posts.

@@ -24,6 +24,15 @@ import pytest
 from app.models.bills import Bill
 from app.models.transactions import Transaction, TransactionLine
 
+
+@pytest.fixture(autouse=True)
+def _tax_part_of_cost(client):
+    """bsq: HST on purchases is claimed back by default now. These tests
+    check the other mode (tax is part of what the purchase cost), which a
+    company can still choose, so they choose it."""
+    r = client.put("/api/settings", json={"purchase_tax_recoverable": "false"})
+    assert r.status_code == 200, r.text
+
 PDF_MAGIC = b"%PDF"
 
 

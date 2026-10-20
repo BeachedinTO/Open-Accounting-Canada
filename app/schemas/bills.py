@@ -17,6 +17,8 @@ class BillLineCreate(StrictModel):
     item_id: Optional[int] = None
     account_id: Optional[int] = None
     job_id: Optional[int] = None
+    # bsq: a customer without a job charges the customer's own job
+    customer_id: Optional[int] = None
     class_id: Optional[int] = None
     cost_code_id: Optional[int] = None
     function: Optional[str] = None
