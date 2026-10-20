@@ -44,7 +44,12 @@ CloseApplications=yes
 Type: filesandordirs; Name: "{app}\_internal"
 
 [Files]
-Source: "dist\SlowBooksPro\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
+; bsq: every Canadian build keeps the upstream version number (2.23.5), and
+; without ignoreversion Inno Setup keeps an installed SlowBooksPro.exe of the
+; same version, so an update replaced the screens but not the program:
+; a new screen talking to the old server ("customer_id is not a field").
+; Always replace the bundle.
+Source: "dist\SlowBooksPro\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 ; The license the wizard showed, kept beside the program.
 Source: "..\..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"
 ; Microsoft's Evergreen WebView2 bootstrapper (~2 MB), downloaded by CI.
