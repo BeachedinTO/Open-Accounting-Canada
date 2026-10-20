@@ -32,7 +32,7 @@ def test_rendered_resource_names_the_product(tmp_path):
     assert "VSVersionInfo(" in text
     assert f"StringStruct('FileVersion', '{v}')" in text
     assert f"StringStruct('ProductVersion', '{v}')" in text
-    assert "StringStruct('ProductName', 'SlowBooks Pro 2026')" in text
+    assert "StringStruct('ProductName', 'Open Accounting Canada')" in text  # bsq rename
     assert "StringStruct('OriginalFilename', 'SlowBooksPro.exe')" in text
     # PyInstaller evaluates this file: it must be a valid Python expression
     # over these names.

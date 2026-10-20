@@ -1352,7 +1352,7 @@ def _webview2_installed() -> bool:
 
 
 WEBVIEW2_URL = "https://developer.microsoft.com/microsoft-edge/webview2/"
-WINDOWS_INSTALLER = "SlowBooksPro-Setup-x64.exe"
+WINDOWS_INSTALLER = "OpenAccountingCanada-Setup-x64.exe"  # bsq
 
 
 def _no_webview2_message() -> str:
