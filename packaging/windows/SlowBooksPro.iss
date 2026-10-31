@@ -15,6 +15,7 @@ AppId={{a0829f2f-e4b8-4db6-b804-75526ee3a527}
 AppName=Open Accounting Canada
 AppVersion={#AppVersion}
 AppPublisher=bsq Landscape Architects (based on SlowBooks Pro 2026 by Trent Von Holten)
+SetupIconFile=slowbookspro.ico
 AppPublisherURL=https://github.com/VonHoltenCodes/SlowBooks-Pro-2026
 DefaultDirName={autopf}\Open Accounting Canada
 DefaultGroupName=Open Accounting Canada

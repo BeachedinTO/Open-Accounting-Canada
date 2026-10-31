@@ -2902,3 +2902,22 @@ tbody tr.row--dim > td.amount { color: var(--text-muted); }
         outline: 2px solid Highlight;
     }
 }
+
+/* bsq: Open Accounting Canada logo — banner on the splash/About box, the
+   round emblem beside the name in the top bar. The box can be taller than
+   the window now: scroll it, and keep its top (the logo) on screen. */
+.splash-overlay { overflow-y: auto; align-items: safe center; padding: 16px 0; }
+.splash-box { margin: auto; flex-shrink: 0; }
+.splash-banner {
+    display: block;
+    width: calc(100% + 48px);
+    margin: -30px -24px 14px;
+    aspect-ratio: 1408 / 768;
+    object-fit: cover;
+}
+.topbar-brand .brand-emblem {
+    width: 18px;
+    height: 18px;
+    vertical-align: -4px;
+    margin-right: 6px;
+}
