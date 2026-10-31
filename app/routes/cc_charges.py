@@ -20,7 +20,9 @@ from app.services.purchase_posting import (
     is_itc_line,
     itc_amount_of,
     resolve_job,
+    split_lines_out,
     split_paid_amount,
+    split_purchase_lines,
 )
 from app.models.transactions import Transaction
 
@@ -48,7 +50,11 @@ def list_cc_charges(db: Session = Depends(get_db)):
         expense_line = next(
             (ln for ln in txn.lines if ln.debit > 0 and not is_itc_line(ln)), None
         )
-        card_line = next((ln for ln in txn.lines if ln.credit > 0), None)
+        card_line = next(
+            (ln for ln in txn.lines if ln.credit > 0 and ln.account is not None and ln.account.bank_kind),
+            None,
+        ) or next((ln for ln in txn.lines if ln.credit > 0), None)
+        split = split_lines_out(db, txn)
         results.append(
             {
                 "id": txn.id,
@@ -60,8 +66,10 @@ def list_cc_charges(db: Session = Depends(get_db)):
                 "amount": float(card_line.credit) if card_line else 0,
                 "tax_amount": float(itc_amount_of(txn)),
                 "account_name": (
-                    names.get(expense_line.account_id, "") if expense_line else ""
+                    f"Split ({len(split)} lines)" if len(split) > 1
+                    else (names.get(expense_line.account_id, "") if expense_line else "")
                 ),
+                "lines": split,  # bsq
                 "card_account_id": card_line.account_id if card_line else None,
                 "card_account_name": (
                     names.get(card_line.account_id, "") if card_line else ""
@@ -90,45 +98,57 @@ def create_cc_charge(data: CCChargeCreate, db: Session = Depends(get_db)):
             detail=f"{card.name} is not a credit-card (liability) account",
         )
 
-    expense_account = db.query(Account).filter(Account.id == data.account_id).first()
-    if not expense_account:
-        raise HTTPException(status_code=404, detail="Expense account not found")
-
     amount = Decimal(str(data.amount))
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be positive")
+    line_desc = data.memo or data.payee or ""
 
-    net, itc = split_paid_amount(db, amount, data.tax_amount)
-    journal_lines = [
-        {
-            "account_id": data.account_id,
-            "debit": net,
-            "credit": Decimal("0"),
-            "description": data.memo or data.payee or "",
-            **(
-                {"function": data.function}
-                if "function" in data.model_fields_set
-                else {}
-            ),
-        },
-        {
-            "account_id": cc_account_id,
-            "debit": Decimal("0"),
-            "credit": amount,
-            "description": data.memo or data.payee or "",
-        },
-    ]
-
+    if data.lines:
+        # bsq: split over several expense types and customers
+        journal_lines, itc = split_purchase_lines(
+            db, amount, data.tax_amount, data.lines, line_desc, cc_account_id
+        )
+        header_job = None
+    else:
+        expense_account = (
+            db.query(Account).filter(Account.id == data.account_id).first()
+            if data.account_id
+            else None
+        )
+        if not expense_account:
+            raise HTTPException(status_code=404, detail="Expense account not found")
+        net, itc = split_paid_amount(db, amount, data.tax_amount)
+        journal_lines = [
+            {
+                "account_id": expense_account.id,
+                "debit": net,
+                "credit": Decimal("0"),
+                "description": line_desc,
+                **(
+                    {"function": data.function}
+                    if "function" in data.model_fields_set
+                    else {}
+                ),
+            }
+        ]
+        header_job = resolve_job(db, data.job_id, data.customer_id)
     if itc:
-        journal_lines.insert(
-            1,
+        journal_lines.append(
             {
                 "account_id": get_itc_account_id(db),
                 "debit": itc,
                 "credit": Decimal("0"),
                 "description": "HST input tax credit",
-            },
+            }
         )
+    journal_lines.append(
+        {
+            "account_id": cc_account_id,
+            "debit": Decimal("0"),
+            "credit": amount,
+            "description": line_desc,
+        }
+    )
 
     desc = f"CC Charge: {data.payee}" if data.payee else "Credit Card Charge"
     txn = create_journal_entry(
@@ -139,7 +159,7 @@ def create_cc_charge(data: CCChargeCreate, db: Session = Depends(get_db)):
         source_type="cc_charge",
         reference=data.reference or "",
         class_id=data.class_id,
-        job_id=resolve_job(db, data.job_id, data.customer_id),
+        job_id=header_job,
     )
 
     db.commit()

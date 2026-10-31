@@ -32,6 +32,7 @@ _SUFFIX_RE = re.compile(
 _WHITESPACE_RE = re.compile(r"\s+")
 # Keep letters/digits/whitespace only
 _PUNCT_RE = re.compile(r"[^\w\s]", flags=re.UNICODE)
+_NUM_RE = re.compile(r"\d+")
 
 
 def normalize_name(name: str) -> str:
@@ -55,6 +56,11 @@ def similarity(a: str, b: str) -> float:
         return 0.0
     if na == nb:
         return 1.0
+    # bsq: customers are named by project address, so "12 Elm Street" and
+    # "14 Elm Street" are different places, not a typo. Names whose numbers
+    # differ are not duplicates.
+    if _NUM_RE.findall(na) != _NUM_RE.findall(nb):
+        return 0.0
     # SequenceMatcher uses a Ratcliff-Obershelp sequence match, which catches
     # typos, transpositions, and partial matches well enough for names.
     return SequenceMatcher(None, na, nb).ratio()

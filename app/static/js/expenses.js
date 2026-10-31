@@ -39,12 +39,147 @@ const HstField = {
             </div></div>`;
     },
     fill(form) {
+        if (form.querySelector && form.querySelector('.split-lines')) {
+            delete form.tax_amount.dataset.manual;
+            SplitPurchase.recalc(form);
+            return;
+        }
         const total = parseFloat(form.amount.value);
         if (!(total > 0) || !form.tax_amount) return;
         form.tax_amount.value = (Math.round(total * HstField.RATE / (100 + HstField.RATE) * 100) / 100).toFixed(2);
+        if (typeof SplitPurchase !== 'undefined') SplitPurchase.recalc(form);
     },
     value(form) {
         return form.tax_amount && form.tax_amount.value ? parseFloat(form.tax_amount.value) : 0;
+    },
+};
+
+/**
+ * bsq: the split lines on the purchase forms (Expenses: cheque, debit,
+ * cash, e-transfer; Credit Card Charges): each line has a type of expense
+ * (account), the customer or job it is for, a description and its amount
+ * before HST. One HST amount covers the receipt. The lines plus HST must
+ * add up to the amount paid; the summary under the table says by how much
+ * they don't yet.
+ */
+const SplitPurchase = {
+    _acctOpts: '',
+    tableHtml(expenseAccts, firstAccountId) {
+        SplitPurchase._acctOpts = PurchaseAccounts.options(expenseAccts);
+        return `<h3 style="margin:12px 0 8px;font-size:14px;">What it was for</h3>
+            <div class="table-container table-container--scroll"><table class="line-items-table split-lines-table">
+                <thead><tr><th scope="col">Type of expense</th><th scope="col" title="HST charged on this line (13%)">HST</th><th scope="col" class="col-amount">Amount (before HST)</th><th scope="col">Description</th><th scope="col">${T('Customer')}:${T('Job')}</th>
+                    <th scope="col" title="Billable to the customer">Bill?</th><th scope="col"></th></tr></thead>
+                <tbody class="split-lines">${SplitPurchase.rowHtml(firstAccountId)}</tbody>
+            </table></div>
+            <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px;" onclick="SplitPurchase.addRow(this.form)">+ Add line</button>
+            <div class="split-summary" style="margin-top:8px; font-size:13px;"></div>`;
+    },
+    rowHtml(accountId) {
+        const opts = SplitPurchase._acctOpts.replace(`value="${accountId}"`, `value="${accountId}" selected`);
+        return `<tr>
+            <td><select class="sp-acct" aria-label="Type of expense"><option value="">Choose...</option>${opts}</select></td>
+            <td style="text-align:center;"><input type="checkbox" class="sp-tax" title="HST charged on this line" aria-label="HST on this line" checked onchange="SplitPurchase.recalc(this.form)"></td>
+            <td><input class="sp-amt" type="number" step="0.01" aria-label="Amount before HST" oninput="SplitPurchase.recalc(this.form)"></td>
+            <td><input class="sp-memo" aria-label="Description"></td>
+            <td><select class="sp-cj" aria-label="${T('Customer')}:${T('Job')}">${CustomerJob.options(null)}</select></td>
+            <td style="text-align:center;"><input type="checkbox" class="sp-bill" title="Billable to the customer"></td>
+            <td style="white-space:nowrap;">
+                <button type="button" class="btn btn-sm btn-secondary" title="Put what is left to assign on this line" onclick="SplitPurchase.rest(this)">Rest</button>
+                <button type="button" class="btn btn-sm btn-secondary" title="Remove this line" aria-label="Remove line" onclick="SplitPurchase.removeRow(this)">&times;</button>
+            </td></tr>`;
+    },
+    addRow(form) {
+        form.querySelector('.split-lines').insertAdjacentHTML('beforeend', SplitPurchase.rowHtml(''));
+        SplitPurchase.recalc(form);
+    },
+    removeRow(btn) {
+        const form = btn.form, body = btn.closest('tbody');
+        if (body.rows.length > 1) btn.closest('tr').remove();
+        SplitPurchase.recalc(form);
+    },
+    cents(n) { return Math.round((Number(n) || 0) * 100) / 100; },
+    totals(form) {
+        let lines = 0, taxed = 0;
+        form.querySelectorAll('.split-lines tr').forEach(row => {
+            const v = parseFloat(row.querySelector('.sp-amt').value) || 0;
+            lines += v;
+            if (row.querySelector('.sp-tax') && row.querySelector('.sp-tax').checked) taxed += v;
+        });
+        lines = SplitPurchase.cents(lines);
+        const hst = SplitPurchase.cents(HstField.value(form));
+        const paid = SplitPurchase.cents(parseFloat(form.amount.value) || 0);
+        return { lines, taxed: SplitPurchase.cents(taxed), hst, paid, left: SplitPurchase.cents(paid - hst - lines) };
+    },
+    // As in QuickBooks: the HST is 13% of the ticked lines and the amount
+    // paid is the lines plus HST, until either is typed in by hand.
+    autofill(form) {
+        let t = SplitPurchase.totals(form);
+        const hstBox = form.tax_amount;
+        if (hstBox && !hstBox.dataset.manual) {
+            hstBox.value = t.taxed ? (Math.round(t.taxed * HstField.RATE) / 100).toFixed(2) : '';
+        }
+        t = SplitPurchase.totals(form);
+        if (!form.amount.dataset.manual && t.lines) {
+            form.amount.value = SplitPurchase.cents(t.lines + t.hst).toFixed(2);
+        }
+    },
+    // a box typed in by hand keeps its value (cleared: back to automatic)
+    wire(form) {
+        if (!form) return;
+        const mark = el => { if (!el) return; el.addEventListener('input', () => {
+            if (el.value === '') delete el.dataset.manual; else el.dataset.manual = '1';
+            SplitPurchase.recalc(form);
+        }); };
+        mark(form.amount);
+        mark(form.tax_amount);
+        SplitPurchase.recalc(form);
+    },
+    rest(btn) {
+        const form = btn.form, amt = btn.closest('tr').querySelector('.sp-amt');
+        const t = SplitPurchase.totals(form);
+        amt.value = SplitPurchase.cents((parseFloat(amt.value) || 0) + t.left).toFixed(2);
+        SplitPurchase.recalc(form);
+    },
+    recalc(form) {
+        const box = form && form.querySelector('.split-summary');
+        if (!box) return;
+        SplitPurchase.autofill(form);
+        const t = SplitPurchase.totals(form);
+        const ok = t.left === 0 && t.paid > 0;
+        box.innerHTML = `Lines ${formatCurrency(t.lines)} + HST ${formatCurrency(t.hst)} = <strong>${formatCurrency(SplitPurchase.cents(t.lines + t.hst))}</strong>
+            &nbsp;·&nbsp; Amount paid ${formatCurrency(t.paid)} &nbsp;·&nbsp;
+            <span style="font-weight:700; color:${ok ? 'var(--text-success, #2e7d32)' : 'var(--text-danger, #c62828)'};">${ok ? 'Balanced' : `Left to assign ${formatCurrency(t.left)}`}</span>`;
+    },
+    // [{account_id, amount, memo, is_billable, job_id|customer_id}], or an
+    // error to show
+    collect(form) {
+        const lines = [];
+        let error = null;
+        form.querySelectorAll('.split-lines tr').forEach((row, i) => {
+            const amount = parseFloat(row.querySelector('.sp-amt').value) || 0;
+            if (!amount) return;
+            const acct = row.querySelector('.sp-acct').value;
+            if (!acct && !error) error = `Line ${i + 1}: choose the type of expense.`;
+            lines.push({
+                account_id: acct ? parseInt(acct) : null,
+                amount: amount.toFixed(2),
+                memo: row.querySelector('.sp-memo').value || null,
+                is_billable: !!row.querySelector('.sp-bill').checked,
+                ...CustomerJob.parse(row.querySelector('.sp-cj').value),
+            });
+        });
+        if (!error && !lines.length) error = 'Add a line: the type of expense, the customer and the amount.';
+        const t = SplitPurchase.totals(form);
+        if (!error && t.left !== 0) error = `The lines plus HST come to ${formatCurrency(SplitPurchase.cents(t.lines + t.hst))}, but the amount paid is ${formatCurrency(t.paid)}. Left to assign: ${formatCurrency(t.left)}.`;
+        return { lines, error };
+    },
+    // the detail view's lines
+    detailHtml(lines) {
+        if (!lines || !lines.length) return '';
+        return `<div class="table-container" style="margin-top:8px;"><table><thead><tr><th scope="col">Type of expense</th><th scope="col">${T('Customer')}:${T('Job')}</th><th scope="col">Description</th><th scope="col" class="amount">Amount</th></tr></thead><tbody>
+            ${lines.map(l => `<tr><td>${escapeHtml(l.account_name || '')}</td><td>${escapeHtml(l.customer_job || '')}</td><td>${escapeHtml(l.memo || '')}${l.is_billable ? ' <em>(billable)</em>' : ''}</td><td class="amount">${formatCurrency(l.amount)}</td></tr>`).join('')}
+            </tbody></table></div>`;
     },
 };
 
@@ -65,17 +200,18 @@ const ExpensesPage = {
                 <p style="font-size:12px; color:var(--gray-600);">Enter a receipt you've already paid — by card, cheque, e-transfer or cash. Scan it to fill the form.</p></div>`;
         } else {
             html += `<div class="table-container"><table>
-                <thead><tr><th scope="col">Date</th><th scope="col">Payee</th><th scope="col">Expense Account</th><th scope="col">Paid From</th><th scope="col">Reference</th>
-                <th scope="col">Status</th><th scope="col" class="amount">Amount</th><th scope="col"></th></tr></thead><tbody>`;
+                <thead><tr><th scope="col">Date</th><th scope="col">Cheque # / Ref</th><th scope="col">Payee</th><th scope="col">Expense Account</th><th scope="col">Paid From</th>
+                <th scope="col">Status</th><th scope="col" class="amount">HST</th><th scope="col" class="amount">Amount</th><th scope="col"></th></tr></thead><tbody>`;
             for (const x of expenses) {
                 const isVoid = x.status === 'void';
                 html += `<tr data-status="${x.status}"${isVoid ? ' class="row--dim" style="text-decoration:line-through;"' : ''}>
                     <td>${formatDate(x.date)}</td>
+                    <td>${escapeHtml(x.reference || '')}</td>
                     <td>${escapeHtml(x.payee || '')}</td>
                     <td>${escapeHtml(x.expense_account_name || '')}</td>
                     <td>${escapeHtml(x.paid_from_account_name || '')}</td>
-                    <td>${escapeHtml(x.reference || '')}</td>
                     <td style="text-decoration:none;">${statusBadge(x.status)}</td>
+                    <td class="amount">${x.tax_amount ? formatCurrency(x.tax_amount) : ''}</td>
                     <td class="amount">${formatCurrency(x.amount)}</td>
                     <td class="actions" style="text-decoration:none;">
                         <button class="btn btn-sm btn-secondary" onclick="ExpensesPage.showDetail(${x.id})">View</button>
@@ -102,11 +238,8 @@ const ExpensesPage = {
         ExpensesPage._vendors = vendors;
         ExpensesPage._accounts = accounts;
         const classGroup = await classFormGroupHtml();
+        // bsq: the type of expense and the customer go on each line
         await CustomerJob.load();
-        const jobGroup = CustomerJob.groupHtml(null);  // bsq: Customer:Job
-        await CostCodes.load();
-        const costCodeGroup = CostCodes.any() ? `<div class="form-group"><label>Cost Code</label><select name="cost_code_id">${CostCodes.optionsHtml(null)}</select></div>` : '';
-        const billableGroup = `<div class="form-group"><label>Billable</label><label style="font-weight:normal;"><input type="checkbox" name="is_billable"> Bill this cost to the job's customer</label></div>`;
         // Expense and cost-of-goods accounts: materials are bought against
         // 5100 Materials Cost as often as against an expense (W-L18).
         const expenseAccts = PurchaseAccounts.filter(accounts);
@@ -116,7 +249,7 @@ const ExpensesPage = {
         const acctOpt = a => `<option value="${a.id}">${accountLabel(a)}</option>`;
         const checking = paidFrom.find(a => /checking/i.test(a.name || '')) || paidFrom[0];
 
-        openModal('Enter Expense', `
+        openModal('Enter Purchase (cheque, debit, cash, e-transfer)', `
             <form id="expense-form" onsubmit="ExpensesPage.save(event)">
                 ${ScanHelper.scanRowHtml()}
                 <div class="form-grid">
@@ -124,33 +257,33 @@ const ExpensesPage = {
                         ${VendorQuickAdd.html(vendors, { id: 'expense-vendor', onchange: 'ExpensesPage.vendorSelected(this.value)' })}</div>
                     <div class="form-group"><label>Date *</label>
                         <input name="date" type="date" required value="${todayISO()}"></div>
-                    <div class="form-group"><label>Expense Account *</label>
-                        <select name="expense_account_id" required><option value="">Select...</option>${PurchaseAccounts.options(expenseAccts)}</select></div>
                     <div class="form-group"><label>Paid From *</label>
                         <select name="paid_from_account_id" required>${paidFrom.map(acctOpt).join('')}</select></div>
-                    <div class="form-group"><label>Amount *</label>
-                        <input name="amount" type="number" step="0.01" min="0.01" required></div>
+                    <div class="form-group"><label>Amount paid (with HST) *</label>
+                        <input name="amount" type="number" step="0.01" min="0.01" required title="Filled in from the lines and HST; type over it to enter the total from the cheque or receipt"></div>
                     ${HstField.html(hstOn)}
-                    <div class="form-group"><label>Reference</label>
-                        <input name="reference" placeholder="Receipt / cheque #"></div>
-                    ${classGroup}${Nonprofit.functionFormGroupHtml()}${jobGroup}${costCodeGroup}${billableGroup}
+                    <div class="form-group"><label>Cheque # / Ref</label>
+                        <input name="reference" placeholder="Cheque number, or debit, cash, e-transfer"></div>
+                    ${classGroup}${Nonprofit.functionFormGroupHtml()}
                     <div class="form-group full-width"><label>Memo</label>
-                        <textarea name="memo"></textarea></div>
+                        <textarea name="memo" rows="1"></textarea></div>
                 </div>
+                ${SplitPurchase.tableHtml(expenseAccts, '')}
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="ScanHelper.discard(); closeModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Expense</button>
                 </div>
-            </form>`);
+            </form>`, { wide: true });
         const pf = document.querySelector('#expense-form [name="paid_from_account_id"]');
         if (pf && checking) pf.value = checking.id;
+        SplitPurchase.wire(document.getElementById('expense-form'));
         ScanHelper.wire(ExpensesPage._applyScan, ExpensesPage._applyScanField, ExpensesPage._scanFieldTarget);
     },
 
     vendorSelected(vendorId) {
         if (!vendorId || vendorId === VendorQuickAdd.NEW) return;
         const vendor = ExpensesPage._vendors.find(v => v.id == vendorId);
-        const sel = document.querySelector('#expense-form [name="expense_account_id"]');
+        const sel = document.querySelector('#expense-form .split-lines .sp-acct');
         if (vendor && vendor.default_expense_account_id && sel && !sel.value) {
             sel.value = vendor.default_expense_account_id;
         }
@@ -196,7 +329,7 @@ const ExpensesPage = {
         } else if (fieldKey === 'subtotal') {
             ExpensesPage._noteLine(form, 'Subtotal', value);
         } else if (fieldKey === 'tax') {
-            if (form.tax_amount) form.tax_amount.value = parseFloat(value).toFixed(2);
+            if (form.tax_amount) { form.tax_amount.value = parseFloat(value).toFixed(2); form.tax_amount.dataset.manual = '1'; SplitPurchase.recalc(form); }
             else ExpensesPage._noteLine(form, 'Tax', value);
         }
     },
@@ -222,11 +355,12 @@ const ExpensesPage = {
         }
 
         const total = parseFloat(result.total || '0');
-        if (total > 0) form.querySelector('[name="amount"]').value = total.toFixed(2);
+        if (total > 0) { form.amount.value = total.toFixed(2); form.amount.dataset.manual = '1'; }
         if (result.tax_detected && result.tax) {
-            if (form.tax_amount) form.tax_amount.value = parseFloat(result.tax).toFixed(2);
+            if (form.tax_amount) { form.tax_amount.value = parseFloat(result.tax).toFixed(2); form.tax_amount.dataset.manual = "1"; }
             else ExpensesPage._noteLine(form, 'Tax', result.tax);
         }
+        SplitPurchase.recalc(form);
     },
 
     async save(e) {
@@ -235,12 +369,13 @@ const ExpensesPage = {
         const paidFrom = parseInt(form.paid_from_account_id.value);
         if (!(await Overdraft.confirm(paidFrom, parseFloat(form.amount.value) || 0))) return;
         if (!(await ClassWarn.ok(form))) return;
+        const split = SplitPurchase.collect(form);
+        if (split.error) { toast(split.error, 'error'); return; }
         try {
             const vendorId = await VendorQuickAdd.ensure('expense-vendor');
             const result = await API.post('/expenses', {
                 date: form.date.value,
                 vendor_id: vendorId,
-                expense_account_id: parseInt(form.expense_account_id.value),
                 paid_from_account_id: paidFrom,
                 amount: parseFloat(form.amount.value),
                 tax_amount: HstField.value(form),
@@ -248,9 +383,7 @@ const ExpensesPage = {
                 memo: form.memo.value || null,
                 class_id: classIdFromForm(form),
                 ...Nonprofit.formPayload(form),
-                ...CustomerJob.parse(form.customer_job ? form.customer_job.value : ''),
-                cost_code_id: form.cost_code_id ? (form.cost_code_id.value ? parseInt(form.cost_code_id.value) : null) : null,
-                is_billable: !!(form.is_billable && form.is_billable.checked),
+                lines: split.lines,
             });
             await ScanHelper.attachAfterSave('expense', result.id);
             toast('Expense recorded');
@@ -277,13 +410,15 @@ const ExpensesPage = {
         openModal(`Expense — ${escapeHtml(x.payee || '')}${isVoid ? ' (VOID)' : ''}`, `
             <div style="font-size:13px; line-height:1.7;">
                 <strong>Date:</strong> ${formatDate(x.date)}<br>
+                ${x.reference ? `<strong>Cheque # / Ref:</strong> ${escapeHtml(x.reference)}<br>` : ''}
                 <strong>Payee:</strong> ${escapeHtml(x.payee || '')}<br>
                 <strong>Expense Account:</strong> ${escapeHtml(x.expense_account_name || '')}<br>
                 <strong>Paid From:</strong> ${escapeHtml(x.paid_from_account_name || '')}<br>
-                <strong>Amount:</strong> ${formatCurrency(x.amount)}<br>
-                ${x.tax_amount ? `<strong>HST (input tax credit):</strong> ${formatCurrency(x.tax_amount)}<br>` : ''}
-                ${x.reference ? `<strong>Reference:</strong> ${escapeHtml(x.reference)}<br>` : ''}
+                ${x.tax_amount ? `<strong>Before HST:</strong> ${formatCurrency(x.amount - x.tax_amount)}<br>
+                <strong>HST (input tax credit):</strong> ${formatCurrency(x.tax_amount)}<br>` : ''}
+                <strong>Amount paid:</strong> ${formatCurrency(x.amount)}<br>
                 ${x.memo ? `<strong>Memo:</strong> ${escapeHtml(x.memo).replace(/\n/g, '<br>')}<br>` : ''}
+                ${SplitPurchase.detailHtml(x.lines)}
             </div>
             <div style="margin-top:12px; border-top:1px solid var(--gray-300); padding-top:8px;">
                 <div style="font-weight:700; font-size:12px; margin-bottom:4px;">Attachments</div>

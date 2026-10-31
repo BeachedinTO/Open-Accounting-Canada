@@ -50,6 +50,11 @@ DEFAULT_SETTINGS = {
     # bsq (Canada): "true" posts tax on bills and vendor credits to 1350 HST
     # Recoverable (ITCs) instead of adding it to what the purchase cost.
     "purchase_tax_recoverable": "true",
+    # bsq: "true" puts an invoice that names no job on the customer's own job
+    # (named after the customer), when the customer has no other jobs, so a
+    # project's income and costs meet on the job reports. Company files get
+    # "true" from the bsq migration; off here keeps the general behaviour.
+    "invoice_customer_job": "false",
     "invoice_prefix": "",
     "invoice_next_number": "1001",
     "estimate_prefix": "E-",

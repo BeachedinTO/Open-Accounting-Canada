@@ -22,7 +22,9 @@ from app.services.purchase_posting import (
     is_itc_line,
     itc_amount_of,
     resolve_job,
+    split_lines_out,
     split_paid_amount,
+    split_purchase_lines,
 )
 
 router = APIRouter(prefix="/api/expenses", tags=["expenses"])
@@ -59,7 +61,12 @@ def _serialize(
     debit_line = next(
         (ln for ln in txn.lines if ln.debit > 0 and not is_itc_line(ln)), None
     )
-    credit_line = next((ln for ln in txn.lines if ln.credit > 0), None)
+    # the money out: the bank or card line (a split may carry a credit line
+    # of its own, a return, before it)
+    credit_line = next(
+        (ln for ln in txn.lines if ln.credit > 0 and ln.account is not None and ln.account.bank_kind),
+        None,
+    ) or next((ln for ln in txn.lines if ln.credit > 0), None)
     vendor = (
         db.query(Vendor).filter(Vendor.id == txn.source_id).first()
         if txn.source_id
@@ -67,13 +74,15 @@ def _serialize(
     )
     desc = txn.description or ""
     payee = vendor.name if vendor else desc.removeprefix("Expense: ").strip()
+    split = split_lines_out(db, txn)
     return ExpenseResponse(
         id=txn.id,
         date=txn.date,
         payee=payee,
         vendor_id=vendor.id if vendor else None,
         expense_account_name=(
-            debit_line.account.name if debit_line and debit_line.account else ""
+            f"Split ({len(split)} lines)" if len(split) > 1
+            else (debit_line.account.name if debit_line and debit_line.account else "")
         ),
         paid_from_account_name=(
             credit_line.account.name if credit_line and credit_line.account else ""
@@ -81,8 +90,10 @@ def _serialize(
         amount=float(credit_line.credit) if credit_line else 0.0,
         tax_amount=float(itc_amount_of(txn)),
         reference=txn.reference or "",
-        memo=(debit_line.description or "") if debit_line else "",
+        # a split's lines carry their own descriptions
+        memo=(debit_line.description or "") if debit_line and len(split) <= 1 else "",
         status="void" if voided else "recorded",
+        lines=split,
     )
 
 
@@ -154,12 +165,6 @@ def create_expense(data: ExpenseCreate, db: Session = Depends(get_db)):
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be positive")
 
-    expense_account = (
-        db.query(Account).filter(Account.id == data.expense_account_id).first()
-    )
-    if expense_account is None:
-        raise HTTPException(status_code=404, detail="Expense account not found")
-
     paid_from = (
         db.query(Account).filter(Account.id == data.paid_from_account_id).first()
     )
@@ -169,10 +174,6 @@ def create_expense(data: ExpenseCreate, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=400,
             detail="Paid-from must be a bank, cash, or credit card account",
-        )
-    if paid_from.id == expense_account.id:
-        raise HTTPException(
-            status_code=400, detail="Expense and paid-from accounts must differ"
         )
 
     vendor = None
@@ -184,38 +185,59 @@ def create_expense(data: ExpenseCreate, db: Session = Depends(get_db)):
     payee = (data.payee or "").strip() or (vendor.name if vendor else "")
     memo = (data.memo or "").strip()
     line_desc = memo or payee
-    net, itc = split_paid_amount(db, amount, data.tax_amount)
-    journal_lines = [
-        {
-            "account_id": expense_account.id,
-            "debit": net,
-            "credit": Decimal("0"),
-            "description": line_desc,
-            "cost_code_id": data.cost_code_id,
-            "is_billable": data.is_billable,
-            **(
-                {"function": data.function}
-                if "function" in data.model_fields_set
-                else {}
-            ),
-        },
-        {
-            "account_id": paid_from.id,
-            "debit": Decimal("0"),
-            "credit": amount,
-            "description": line_desc,
-        },
-    ]
+    paid_line = {
+        "account_id": paid_from.id,
+        "debit": Decimal("0"),
+        "credit": amount,
+        "description": line_desc,
+    }
+
+    if data.lines:
+        # bsq: split over several expense types and customers
+        debit_lines, itc = split_purchase_lines(
+            db, amount, data.tax_amount, data.lines, line_desc, paid_from.id
+        )
+        journal_lines = debit_lines
+        header_job = None
+    else:
+        expense_account = (
+            db.query(Account).filter(Account.id == data.expense_account_id).first()
+            if data.expense_account_id
+            else None
+        )
+        if expense_account is None:
+            raise HTTPException(status_code=404, detail="Expense account not found")
+        if paid_from.id == expense_account.id:
+            raise HTTPException(
+                status_code=400, detail="Expense and paid-from accounts must differ"
+            )
+        net, itc = split_paid_amount(db, amount, data.tax_amount)
+        journal_lines = [
+            {
+                "account_id": expense_account.id,
+                "debit": net,
+                "credit": Decimal("0"),
+                "description": line_desc,
+                "cost_code_id": data.cost_code_id,
+                "is_billable": data.is_billable,
+                **(
+                    {"function": data.function}
+                    if "function" in data.model_fields_set
+                    else {}
+                ),
+            }
+        ]
+        header_job = resolve_job(db, data.job_id, data.customer_id)
     if itc:
-        journal_lines.insert(
-            1,
+        journal_lines.append(
             {
                 "account_id": get_itc_account_id(db),
                 "debit": itc,
                 "credit": Decimal("0"),
                 "description": f"HST input tax credit - {line_desc}".rstrip(" -"),
-            },
+            }
         )
+    journal_lines.append(paid_line)
 
     txn = create_journal_entry(
         db,
@@ -228,7 +250,7 @@ def create_expense(data: ExpenseCreate, db: Session = Depends(get_db)):
         source_id=vendor.id if vendor else None,
         reference=data.reference or "",
         class_id=data.class_id,
-        job_id=resolve_job(db, data.job_id, data.customer_id),
+        job_id=header_job,
     )
     db.commit()
     db.refresh(txn)

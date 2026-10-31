@@ -139,15 +139,15 @@ def test_edit_shows_a_taxed_bills_tax_and_its_own_total(
         assert shown == {
             "amounts": ["$33.43", "$0.30"],
             "subtotal": "$33.73",
-            "taxLabel": "Tax (5%)",
+            "taxLabel": "HST",  # bsq: the label is HST
             "tax": "$1.69",
             "total": "$35.42",
         }
-        # an untaxed bill still shows its total alone
+        # bsq: a new bill always has the HST box (the company rate, 13%)
         page.evaluate("() => closeModal()")
         page.evaluate("async () => { await BillsPage.showForm(); }")
         page.wait_for_function(OPEN, timeout=5000)
-        assert page.evaluate("() => document.getElementById('bill-tax')") is None
+        assert page.evaluate("() => !!document.getElementById('bill-tax')")
     finally:
         page.close()
 

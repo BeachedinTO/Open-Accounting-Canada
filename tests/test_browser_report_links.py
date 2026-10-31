@@ -467,18 +467,10 @@ def test_the_vendor_page_reports_open_for_the_vendor(browser, company, books):
         assert page.evaluate(TITLE) == f"Drill-down — {cogs['name']}"
         assert _query(_hash(page))["account_id"] == str(cogs["id"])
 
-        # a 1099 vendor: the summary for this year, its row picked out
+        # bsq: no 1099 Summary in the Canadian edition
         _open_vendor(page, handled, vid1099)
         links = dict(_hrefs(page, "Reports for this vendor"))
-        year = dt.date.today().year
-        assert (
-            links["1099 Summary"]
-            == f"#/reports/1099-summary?year={year}&vendor_id={vid1099}"
-        )
-        page.get_by_role("link", name="1099 Summary").click()
-        page.wait_for_selector("#report-1099-content table")
-        current = page.locator('#report-1099-content tr[aria-current="true"]')
-        assert current.count() == 1 and "Blue Heron Installs" in current.text_content()
+        assert "1099 Summary" not in links
     finally:
         page.close()
 
@@ -498,7 +490,6 @@ def test_a_read_only_sign_in_keeps_the_reports_rows(
         assert page.get_by_role("button", name="Statement (PDF)").count() == 1
         _open_vendor(page, handled, books["vendor2"])
         assert sorted(t for t, _ in _hrefs(page, "Reports for this vendor")) == [
-            "1099 Summary",
             "A/P Aging",
         ]
     finally:

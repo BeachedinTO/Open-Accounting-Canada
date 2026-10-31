@@ -185,7 +185,7 @@ const JobCostsPage = {
     // ---- Allocate -------------------------------------------------------------
     async showAllocate() {
         await JobCostsPage._loadRefs();
-        const jobOpts = JobCostsPage._jobs.map(j => `<label style="display:block;font-weight:normal"><input type="checkbox" class="alloc-job" value="${j.id}" checked> ${escapeHtml(j.full_name)} <input type="number" class="alloc-weight" step="0.01" value="1" style="width:70px;margin-left:6px" title="Weight (percent method)"></label>`).join('');
+        const jobOpts = JobCostsPage._jobs.map(j => `<label style="display:block;font-weight:normal"><input type="checkbox" class="alloc-job" value="${j.id}" checked> ${escapeHtml(j.full_name)} <input type="number" class="alloc-weight" name="alloc-weight-${j.id}" aria-label="Weight for ${escapeHtml(j.full_name)}" step="0.01" value="1" style="width:70px;margin-left:6px" title="Weight (percent method)"></label>`).join('');
         const codeOpts = JobCostsPage._opt(JobCostsPage._codes, 'id', c => c.label, null);
         const typeOpts = JobCostsPage._opt(JobCostsPage._types, 'code', t => t.name, 'other', 'auto');
         const acctOpts = JobCostsPage._opt(JobCostsPage._accounts, 'id', a => `${a.account_number || ''} ${a.name}`.trim(), null, 'default');

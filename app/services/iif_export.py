@@ -254,7 +254,8 @@ def _customer_job(db: Session, customer, job_id) -> str:
         from app.models.jobs import Job
 
         job = db.get(Job, job_id)
-        if job and job.name:
+        # bsq: the job named after its customer is the customer itself
+        if job and job.name and job.name.lower() != ((customer.name if customer else "") or "").lower():
             name = f"{name}:{job.name}"
     return name
 
@@ -391,6 +392,8 @@ def export_customers(db: Session) -> str:
         # QuickBooks "Customer:Job" — every job goes out as a CUST row under
         # its customer, which is exactly what the importer splits back.
         for job in sorted(getattr(c, "jobs", None) or [], key=lambda j: j.name):
+            if (job.name or "").lower() == (c.name or "").lower():
+                continue  # bsq: the customer's own job is the customer row
             lines += _iif_line(["CUST", _iif_text(f"{c.name}:{job.name}")] + [""] * 14)
     return lines
 

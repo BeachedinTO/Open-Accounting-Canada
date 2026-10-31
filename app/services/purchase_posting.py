@@ -211,6 +211,53 @@ def job_for_customer(db: Session, customer_id: int) -> int:
     return job.id
 
 
+def is_customers_own_job(db: Session, job_id, customer_id) -> bool:
+    """True when the job is the one named after its customer."""
+    from app.models.contacts import Customer
+    from app.models.jobs import Job
+
+    if not job_id or not customer_id:
+        return False
+    job = db.get(Job, job_id)
+    customer = db.get(Customer, customer_id)
+    return bool(
+        job and customer and job.customer_id == customer.id
+        and (job.name or "").lower() == (customer.name or "").lower()
+    )
+
+
+def invoice_customer_job_on(db: Session) -> bool:
+    """bsq: the invoice_customer_job setting (see app/models/settings.py)."""
+    from app.models.settings import DEFAULT_SETTINGS
+    from app.services.settings_service import get_setting_raw
+
+    value = get_setting_raw(db, "invoice_customer_job")
+    if value is None:
+        value = DEFAULT_SETTINGS.get("invoice_customer_job", "false")
+    return (value or "").lower() == "true"
+
+
+def own_job_if_no_others(db: Session, customer_id: int):
+    """bsq: the customer's own job for an invoice that names none, when the
+    customer is a single project (no jobs of its own besides the one named
+    after it). A customer with real jobs is left alone: the invoice stays
+    off any job, as before, rather than landing on a made-up one."""
+    from app.models.contacts import Customer
+    from app.models.jobs import Job
+
+    customer = db.get(Customer, customer_id)
+    if customer is None:
+        return None
+    others = (
+        db.query(Job)
+        .filter(Job.customer_id == customer.id)
+        .all()
+    )
+    if any((j.name or "").lower() != (customer.name or "").lower() for j in others):
+        return None
+    return job_for_customer(db, customer.id)
+
+
 def resolve_job(db: Session, job_id: Optional[int], customer_id: Optional[int]) -> Optional[int]:
     """The job a purchase line is charged to: the job named, else the
     customer's own job when only a customer is named, else none."""
@@ -219,6 +266,92 @@ def resolve_job(db: Session, job_id: Optional[int], customer_id: Optional[int]) 
     if customer_id:
         return job_for_customer(db, customer_id)
     return None
+
+
+def split_purchase_lines(db: Session, total, tax_amount, lines, default_desc: str = "", paid_from_id: Optional[int] = None):
+    """bsq: a purchase paid directly (cheque, debit, card, cash) split over
+    several lines, each with its own expense account, customer or job,
+    description and pre-HST amount, plus one HST amount for the receipt.
+
+    Returns (debit journal lines, recoverable HST). The lines plus the HST
+    must add up to the total paid, to the cent."""
+    total = _q(Decimal(str(total)))
+    tax = _q(Decimal(str(tax_amount or 0)))
+    if tax < 0:
+        raise HTTPException(status_code=400, detail="The HST amount can't be negative.")
+    if tax != 0 and not purchase_tax_recoverable(db):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "HST on purchases is recorded only when Settings > Tax on "
+                "Purchases is set to 'Recoverable: HST input tax credits'."
+            ),
+        )
+    out = []
+    lines_total = Decimal("0.00")
+    for n, ln in enumerate(lines, 1):
+        amt = _q(Decimal(str(ln.amount or 0)))
+        if amt == 0:
+            continue
+        acct = db.get(Account, ln.account_id) if ln.account_id else None
+        if acct is None:
+            raise HTTPException(status_code=400, detail=f"Line {n}: choose the type of expense (the account).")
+        if acct.bank_kind or (paid_from_id and acct.id == paid_from_id):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Line {n}: {acct.name} is a bank or card account. A transfer is entered under Banking.",
+            )
+        out.append(
+            {
+                "account_id": acct.id,
+                "debit": amt if amt > 0 else Decimal("0"),
+                "credit": -amt if amt < 0 else Decimal("0"),
+                "description": (ln.memo or "").strip() or default_desc or None,
+                "job_id": resolve_job(db, ln.job_id, ln.customer_id),
+                "is_billable": bool(ln.is_billable),
+                "class_id": ln.class_id,
+                "cost_code_id": ln.cost_code_id,
+            }
+        )
+        lines_total += amt
+    if not out:
+        raise HTTPException(status_code=400, detail="Add at least one line: what it was for and how much.")
+    if lines_total + tax != total:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"The lines (${lines_total:,.2f}) plus HST (${tax:,.2f}) come to "
+                f"${lines_total + tax:,.2f}, but the amount paid is ${total:,.2f}. They need to match."
+            ),
+        )
+    return out, tax
+
+
+def split_lines_out(db: Session, txn) -> list[dict]:
+    """The split lines of a posted purchase, for a response: every debit or
+    credit except the bank/card side and the HST."""
+    from app.models.jobs import Job
+
+    rows = []
+    for ln in txn.lines:
+        acct = ln.account
+        if acct is None or acct.bank_kind or acct.account_number == ITC_ACCOUNT_NUMBER:
+            continue
+        amount = Decimal(str(ln.debit or 0)) - Decimal(str(ln.credit or 0))
+        job = db.get(Job, ln.job_id) if ln.job_id else None
+        cust = job.customer.name if job is not None and job.customer is not None else ""
+        rows.append(
+            {
+                "account_id": acct.id,
+                "account_name": acct.name,
+                "amount": float(amount),
+                "job_id": ln.job_id,
+                "customer_job": (cust if job is None or job.name == cust else f"{cust} : {job.name}"),
+                "memo": ln.description or "",
+                "is_billable": bool(getattr(ln, "is_billable", False)),
+            }
+        )
+    return rows
 
 
 def _line_label(line_no: int, description: Optional[str]) -> str:

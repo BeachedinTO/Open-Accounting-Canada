@@ -405,7 +405,7 @@ def test_the_alt_shortcuts_go_by_the_keys_position_and_cmd_k_finds(
         page.wait_for_function(f"() => !({MODAL_SHOWN})()")
         page.evaluate(KEY, ["Dead", "KeyE", {"altKey": True}])
         page.wait_for_function(MODAL_SHOWN)
-        assert page.evaluate(TITLE) == "Enter Expense"
+        assert page.evaluate(TITLE) == "Enter Purchase (cheque, debit, cash, e-transfer)"
         page.evaluate("() => closeModal()")
         page.wait_for_function(f"() => !({MODAL_SHOWN})()")
         # the toolbar button says so: a screen reader hears Alt+B on Enter Bill
@@ -3398,7 +3398,7 @@ def test_every_report_center_card_is_reached_and_opened_by_the_keyboard(
         _no_splash(page)
         _visit(page, handled, "#/reports")
         cards = page.evaluate(CARD_LIST)
-        assert len(cards) == 19, cards
+        assert len(cards) == 18, cards  # bsq: no 1099 Summary
         for c in cards:
             view = c["key"].split(":", 1)[1]
             assert c["href"] == f"#/reports/{view}", c

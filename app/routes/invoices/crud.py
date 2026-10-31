@@ -126,6 +126,22 @@ def create_invoice(data: InvoiceCreate, db: Session = Depends(get_db)):
     noun = document_label(SimpleNamespace(is_pledge=data.is_pledge), words).lower()
     # The job, on the header or a line, is this customer's (NEW-36).
     refuse_other_customers_jobs(db, customer.id, data.job_id, data.lines, noun, words)
+    # bsq: each customer is a project. An invoice that names no job goes to
+    # the customer's own job, where its costs go too, so the project's
+    # income and costs line up on the job reports.
+    if (
+        not data.job_id
+        and not any(getattr(ln, "job_id", None) for ln in data.lines)
+        and not data.is_pledge
+    ):
+        from app.services.purchase_posting import (
+            invoice_customer_job_on,
+            own_job_if_no_others,
+        )
+        from app.services.settings_service import is_nonprofit
+
+        if not is_nonprofit(db) and invoice_customer_job_on(db):
+            data.job_id = own_job_if_no_others(db, customer.id)
 
     # Parse terms for due date (explicit due_date wins; else derive from terms)
     due_date = data.due_date or _due_date_from_terms(data.date, data.terms)
@@ -282,6 +298,24 @@ def update_invoice(invoice_id: int, data: InvoiceUpdate, db: Session = Depends(g
     # alone is not judged, so a note saved over a job the user didn't touch
     # (books from before the rule) goes through, from the form too, which
     # sends every field as stored.
+    # bsq: moved to another customer, an invoice on the old customer's own
+    # job (set when it was made) follows to the new customer's.
+    new_cust = update_data.get("customer_id")
+    if (
+        new_cust not in (None, invoice.customer_id)
+        and update_data.get("job_id", invoice.job_id) == invoice.job_id
+    ):
+        from app.services.purchase_posting import (
+            is_customers_own_job,
+            own_job_if_no_others,
+        )
+
+        if is_customers_own_job(db, invoice.job_id, invoice.customer_id):
+            update_data["job_id"] = (
+                own_job_if_no_others(db, new_cust)
+                if db.get(Customer, new_cust) is not None
+                else None
+            )
     refuse_other_customers_jobs_on_edit(
         db,
         invoice,

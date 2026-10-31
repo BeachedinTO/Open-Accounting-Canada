@@ -4,12 +4,13 @@ from typing import Optional
 
 from pydantic import BaseModel
 from app.schemas.common import StrictModel
+from app.schemas.expenses import PurchaseLineCreate
 
 
 class CCChargeCreate(StrictModel):
     date: dt_date
     payee: Optional[str] = None
-    account_id: int
+    account_id: Optional[int] = None  # bsq: or `lines`
     # the card (a liability account; default 2100 Credit Card)
     card_account_id: Optional[int] = None
     amount: Decimal
@@ -20,6 +21,7 @@ class CCChargeCreate(StrictModel):
     class_id: Optional[int] = None
     job_id: Optional[int] = None
     customer_id: Optional[int] = None  # bsq: charges the customer's own job
+    lines: list[PurchaseLineCreate] = []  # bsq: split, each pre-HST
     function: Optional[str] = None  # nonprofit: program | management | fundraising
 
 
