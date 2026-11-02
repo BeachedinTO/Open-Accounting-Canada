@@ -118,6 +118,35 @@ const SplitPurchase = {
         form.querySelector('.split-lines').insertAdjacentHTML('beforeend', SplitPurchase.rowHtml(''));
         SplitPurchase.recalc(form);
     },
+    // bsq: an edit draws the saved lines. Only the HST total is stored, so
+    // every line is ticked when there was HST. A line already billed on an
+    // invoice keeps its account, customer and amount.
+    fillRows(form, lines, taxed) {
+        const body = form.querySelector('.split-lines');
+        body.innerHTML = '';
+        (lines || []).forEach(l => {
+            body.insertAdjacentHTML('beforeend', SplitPurchase.rowHtml(String(l.account_id || '')));
+            const row = body.lastElementChild;
+            row.querySelector('.sp-tax').checked = !!taxed;
+            row.querySelector('.sp-amt').value = Number(l.amount).toFixed(2);
+            row.querySelector('.sp-memo').value = l.memo || '';
+            const cj = row.querySelector('.sp-cj');
+            if (l.job_id) {
+                if (![...cj.options].some(o => o.value === `j:${l.job_id}`)) {
+                    cj.insertAdjacentHTML('beforeend', `<option value="j:${l.job_id}">${escapeHtml(l.customer_job || `${T('Job')} #${l.job_id}`)}</option>`);
+                }
+                cj.value = `j:${l.job_id}`;
+            }
+            row.querySelector('.sp-bill').checked = !!l.is_billable;
+            if (l.billed) {
+                ['.sp-acct', '.sp-amt', '.sp-cj', '.sp-bill'].forEach(sel => { row.querySelector(sel).disabled = true; });
+                row.title = 'Already billed on an invoice';
+                row.querySelector('.sp-memo').insertAdjacentHTML('afterend', '<span class="badge" style="font-size:9px">billed</span>');
+                row.querySelectorAll('button').forEach(b => { b.disabled = true; });
+            }
+        });
+        if (!body.rows.length) body.insertAdjacentHTML('beforeend', SplitPurchase.rowHtml(''));
+    },
     removeRow(btn) {
         const form = btn.form, body = btn.closest('tbody');
         if (body.rows.length > 1) btn.closest('tr').remove();
@@ -242,6 +271,7 @@ const ExpensesPage = {
                     <td class="amount">${formatCurrency(x.amount)}</td>
                     <td class="actions" style="text-decoration:none;">
                         <button class="btn btn-sm btn-secondary" onclick="ExpensesPage.showDetail(${x.id})">View</button>
+                        ${isVoid ? '' : `<button class="btn btn-sm btn-secondary" onclick="ExpensesPage.showForm(${x.id})">Edit</button>`}
                         ${isVoid ? '' : `<button data-destructive class="btn btn-sm btn-danger" onclick="ExpensesPage.void(${x.id})">Void</button>`}
                     </td>
                 </tr>`;
@@ -257,14 +287,17 @@ const ExpensesPage = {
         return accounts.filter(a => a.bank_kind);
     },
 
-    async showForm() {
-        const [vendors, accounts] = await Promise.all([
+    async showForm(id = null) {
+        const [vendors, accounts, x] = await Promise.all([
             API.get('/vendors?active_only=true'),
             API.get('/accounts'),
+            id ? API.get(`/expenses/${id}`) : Promise.resolve(null),
         ]);
+        if (x && x.status === 'void') { toast('A void cheque can\'t be changed. Enter it again instead.', 'error'); return; }
+        if (x && x.vendor_id && !vendors.some(v => v.id === x.vendor_id)) vendors.push({ id: x.vendor_id, name: x.payee });
         ExpensesPage._vendors = vendors;
         ExpensesPage._accounts = accounts;
-        const classGroup = await classFormGroupHtml();
+        const classGroup = await classFormGroupHtml(x ? x.class_id : undefined);
         // bsq: the type of expense and the customer go on each line
         await CustomerJob.load();
         // Expense and cost-of-goods accounts: materials are bought against
@@ -276,9 +309,9 @@ const ExpensesPage = {
         const acctOpt = a => `<option value="${a.id}">${accountLabel(a)}</option>`;
         const checking = paidFrom.find(a => /checking/i.test(a.name || '')) || paidFrom[0];
 
-        openModal('Enter Purchase (cheque, debit, cash, e-transfer)', `
-            <form id="expense-form" onsubmit="ExpensesPage.save(event)">
-                ${ScanHelper.scanRowHtml()}
+        openModal(x ? `Edit Cheque ${escapeHtml(x.reference || '')}`.trim() : 'Enter Purchase (cheque, debit, cash, e-transfer)', `
+            <form id="expense-form" onsubmit="ExpensesPage.save(event, ${x ? x.id : 'null'})">
+                ${x ? '' : ScanHelper.scanRowHtml()}
                 <div class="cheque-box">
                     <div class="form-grid">
                         <div class="form-group"><label>Bank account (paid from) *</label>
@@ -303,13 +336,35 @@ const ExpensesPage = {
                 <div class="form-grid" style="margin-top:8px;">${HstField.html(hstOn).replace('<label>HST included</label>', '<label>Total Taxes (HST)</label>')}</div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="ScanHelper.discard(); closeModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Expense</button>
+                    <button type="submit" class="btn btn-primary">${x ? 'Save Changes' : 'Save Expense'}</button>
                 </div>
             </form>`, { wide: true });
         const pf = document.querySelector('#expense-form [name="paid_from_account_id"]');
         if (pf && checking) pf.value = checking.id;
-        SplitPurchase.wire(document.getElementById('expense-form'));
-        ScanHelper.wire(ExpensesPage._applyScan, ExpensesPage._applyScanField, ExpensesPage._scanFieldTarget);
+        const ef = document.getElementById('expense-form');
+        ExpensesPage._editing = null;
+        if (x) {
+            // the saved cheque: its own total and HST stay unless retyped
+            if (pf && x.paid_from_account_id) pf.value = x.paid_from_account_id;
+            ef.date.value = x.date;
+            ef.reference.value = x.reference || '';
+            ef.memo.value = x.memo || '';
+            const vs = document.getElementById('expense-vendor');
+            if (vs && x.vendor_id) { vs.value = x.vendor_id; VendorQuickAdd.selected('expense-vendor'); ExpensesPage.vendorSelected(x.vendor_id); }
+            else if (x.payee) {
+                // a cheque saved with a payee name only (an import): its
+                // vendor by that name, or a new one made when it is saved
+                const m = VendorQuickAdd.prefill('expense-vendor', x.payee, vendors);
+                if (m) ExpensesPage.vendorSelected(m.id);
+            }
+            ExpensesPage._editing = { amount: Number(x.amount) || 0, paidFrom: x.paid_from_account_id };
+            ef.amount.value = Number(x.amount).toFixed(2);
+            ef.amount.dataset.manual = '1';
+            if (ef.tax_amount) { ef.tax_amount.value = x.tax_amount ? Number(x.tax_amount).toFixed(2) : ''; ef.tax_amount.dataset.manual = '1'; }
+            SplitPurchase.fillRows(ef, x.lines, x.tax_amount > 0);
+        }
+        SplitPurchase.wire(ef);
+        if (!x) ScanHelper.wire(ExpensesPage._applyScan, ExpensesPage._applyScanField, ExpensesPage._scanFieldTarget);
     },
 
     vendorSelected(vendorId) {
@@ -401,17 +456,19 @@ const ExpensesPage = {
         SplitPurchase.recalc(form);
     },
 
-    async save(e) {
+    async save(e, id = null) {
         e.preventDefault();
         const form = e.target;
         const paidFrom = parseInt(form.paid_from_account_id.value);
-        if (!(await Overdraft.confirm(paidFrom, parseFloat(form.amount.value) || 0))) return;
+        // an edit only takes out the difference from what the cheque was
+        const was = id && ExpensesPage._editing && ExpensesPage._editing.paidFrom === paidFrom ? ExpensesPage._editing.amount : 0;
+        if (!(await Overdraft.confirm(paidFrom, (parseFloat(form.amount.value) || 0) - was))) return;
         if (!(await ClassWarn.ok(form))) return;
         const split = SplitPurchase.collect(form);
         if (split.error) { toast(split.error, 'error'); return; }
         try {
             const vendorId = await VendorQuickAdd.ensure('expense-vendor');
-            const result = await API.post('/expenses', {
+            const result = await API[id ? 'put' : 'post'](id ? `/expenses/${id}` : '/expenses', {
                 date: form.date.value,
                 vendor_id: vendorId,
                 paid_from_account_id: paidFrom,
@@ -423,8 +480,8 @@ const ExpensesPage = {
                 ...Nonprofit.formPayload(form),
                 lines: split.lines,
             });
-            await ScanHelper.attachAfterSave('expense', result.id);
-            toast('Expense recorded');
+            if (!id) await ScanHelper.attachAfterSave('expense', result.id);
+            toast(id ? 'Cheque updated' : 'Expense recorded');
             closeModal();
             App.navigate('#/expenses');
         } catch (err) { toast(err.message, 'error'); }
@@ -468,6 +525,7 @@ const ExpensesPage = {
             </div>
             <div class="form-actions">
                 ${isVoid ? '' : `<button data-destructive type="button" class="btn btn-danger" onclick="ExpensesPage.void(${x.id})">Void</button>`}
+                ${isVoid ? '' : `<button type="button" class="btn btn-primary" onclick="ExpensesPage.showForm(${x.id})">Edit</button>`}
                 <button type="button" class="btn btn-secondary" onclick="closeModal()">Close</button>
             </div>`);
         ExpensesPage.loadAttachments(x.id);

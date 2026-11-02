@@ -158,3 +158,20 @@ class InvoiceLine(Base):
 
     invoice = relationship("Invoice", back_populates="lines")
     item = relationship("Item")
+
+    @property
+    def billable_cost_id(self):
+        """bsq: the billable cost (journal line) this line bills, if any."""
+        from sqlalchemy.orm import object_session
+
+        from app.models.transactions import TransactionLine
+
+        db = object_session(self)
+        if db is None or self.id is None:
+            return None
+        row = (
+            db.query(TransactionLine.id)
+            .filter(TransactionLine.billed_invoice_line_id == self.id)
+            .first()
+        )
+        return row[0] if row else None

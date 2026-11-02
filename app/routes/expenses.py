@@ -87,6 +87,8 @@ def _serialize(
         paid_from_account_name=(
             credit_line.account.name if credit_line and credit_line.account else ""
         ),
+        paid_from_account_id=credit_line.account_id if credit_line else None,
+        class_id=txn.class_id,
         amount=float(credit_line.credit) if credit_line else 0.0,
         tax_amount=float(itc_amount_of(txn)),
         reference=txn.reference or "",
@@ -157,10 +159,9 @@ def void_expense(expense_id: int, db: Session = Depends(get_db)):
     return _serialize(txn, db, True)
 
 
-@router.post("", response_model=ExpenseResponse, status_code=201)
-def create_expense(data: ExpenseCreate, db: Session = Depends(get_db)):
-    check_closing_date(db, data.date)
-
+def _build(db: Session, data: ExpenseCreate):
+    """The journal for a cheque / debit / cash / e-transfer purchase:
+    (lines, header job, vendor, payee, paid-from account)."""
     amount = Decimal(str(data.amount))
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be positive")
@@ -238,7 +239,13 @@ def create_expense(data: ExpenseCreate, db: Session = Depends(get_db)):
             }
         )
     journal_lines.append(paid_line)
+    return journal_lines, header_job, vendor, payee
 
+
+@router.post("", response_model=ExpenseResponse, status_code=201)
+def create_expense(data: ExpenseCreate, db: Session = Depends(get_db)):
+    check_closing_date(db, data.date)
+    journal_lines, header_job, vendor, payee = _build(db, data)
     txn = create_journal_entry(
         db,
         data.date,
@@ -252,6 +259,85 @@ def create_expense(data: ExpenseCreate, db: Session = Depends(get_db)):
         class_id=data.class_id,
         job_id=header_job,
     )
+    db.commit()
+    db.refresh(txn)
+    return _serialize(txn, db)
+
+
+@router.put("/{expense_id}", response_model=ExpenseResponse)
+def update_expense(expense_id: int, data: ExpenseCreate, db: Session = Depends(get_db)):
+    """bsq: open a cheque and change it, as in QuickBooks. The journal is
+    posted again in place (same entry, new lines). A cheque that is void,
+    reconciled or in a closed period can't be changed; a line already
+    billed on an invoice keeps its account, job and amount."""
+    from app.routes.invoices.helpers import _reverse_and_delete_journal
+    from app.services.billable_costs import billed_snapshot, restore_billed
+
+    txn = (
+        db.query(Transaction)
+        .filter(Transaction.id == expense_id, Transaction.source_type == SOURCE_TYPE)
+        .first()
+    )
+    if txn is None:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    if txn.id in _void_ids(db, [txn.id]):
+        raise HTTPException(status_code=400, detail="A void cheque can't be changed. Enter it again instead.")
+    assert_not_reconciled(txn)
+    check_closing_date(db, txn.date)
+    check_closing_date(db, data.date)
+
+    journal_lines, header_job, vendor, payee = _build(db, data)
+    billed_before = billed_snapshot(db, txn.id)
+    # a match to a bank statement line stays when the money out is the same
+    from app.models.banking import BankTransaction
+
+    old_paid = next((ln for ln in txn.lines if ln.credit > 0 and ln.account and ln.account.bank_kind), None)
+    matched = (
+        db.query(BankTransaction).filter(BankTransaction.transaction_line_id == old_paid.id).all()
+        if old_paid is not None else []
+    )
+    keep_match = (
+        old_paid is not None
+        and old_paid.account_id == data.paid_from_account_id
+        and Decimal(str(old_paid.credit)) == Decimal(str(data.amount))
+    )
+    was_cleared = bool(old_paid is not None and old_paid.cleared)
+    if keep_match:
+        for bt in matched:
+            bt.transaction_line_id = None
+        db.flush()
+    else:
+        release_statement_links(db, txn)
+    _reverse_and_delete_journal(db, txn.id)
+    db.flush()
+    txn.date = data.date
+    txn.class_id = data.class_id
+    txn.job_id = header_job
+    create_journal_entry(
+        db,
+        data.date,
+        f"Expense: {payee}" if payee else "Expense",
+        journal_lines,
+        source_type=SOURCE_TYPE,
+        source_id=vendor.id if vendor else None,
+        reference=data.reference or "",
+        class_id=data.class_id,
+        job_id=header_job,
+        existing_transaction=txn,
+    )
+    restore_billed(db, txn.id, billed_before)
+    if keep_match and (matched or was_cleared):
+        db.flush()
+        db.refresh(txn)
+        new_paid = next(
+            (ln for ln in txn.lines if ln.credit > 0 and ln.account_id == data.paid_from_account_id),
+            None,
+        )
+        if new_paid is not None:
+            new_paid.cleared = was_cleared
+            for bt in matched:
+                bt.transaction_id = txn.id
+                bt.transaction_line_id = new_paid.id
     db.commit()
     db.refresh(txn)
     return _serialize(txn, db)

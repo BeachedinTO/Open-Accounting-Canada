@@ -174,7 +174,7 @@ def test_purchase_account_pickers_offer_cost_of_goods_sold():
     assert (
         "PurchaseAccounts.filter(accounts, v.default_expense_account_id)" in vendor_form
     )
-    expense_form = _method(_js("expenses.js"), "async showForm()")
+    expense_form = _method(_js("expenses.js"), "async showForm(id = null)")  # bsq: opens a saved cheque too
     assert "PurchaseAccounts.filter(accounts)" in expense_form
     card_form = _method(_js("cc_charges.js"), "async showForm()")
     assert "account_type=expense" not in card_form
@@ -308,10 +308,10 @@ def test_money_leaving_a_bank_account_warns_before_it_overdraws():
     assert "API.get('/banking/overview')" in od
     assert "acct.bank_kind !== 'bank'" in od
     assert "will be overdrawn by" in od and "${action} anyway?" in od
-    expense_save = _method(helper, "async save(e)")
+    expense_save = _method(helper, "async save(e, id = null)")  # bsq: saves an edit too
     assert "await Overdraft.confirm(paidFrom" in expense_save
     assert expense_save.index("Overdraft.confirm") < expense_save.index(
-        "API.post('/expenses'"
+        "API[id ? 'put' : 'post']"
     )
     pay = _method(_js("bills.js"), "async savePay(e)")
     assert "await Overdraft.confirm(fromId, outgoing, '1000')" in pay

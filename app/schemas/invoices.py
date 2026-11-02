@@ -50,6 +50,8 @@ class InvoiceLineCreate(StrictModel):
     # None = default from the item (its taxable flag) and the customer
     is_taxable: Optional[bool] = None
     line_order: int = 0
+    # bsq: the billable cost (a journal line id) this line bills
+    billable_cost_id: Optional[int] = None
 
     @model_validator(mode="after")
     def _check_non_negative(self):
@@ -73,6 +75,7 @@ class InvoiceLineResponse(BaseModel):
     cost_code_id: Optional[int] = None
     is_taxable: bool = True
     line_order: int
+    billable_cost_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
 

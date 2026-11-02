@@ -638,7 +638,12 @@ def update_bill(bill_id: int, data: BillUpdate, db: Session = Depends(get_db)):
         # each old line leaves a DELETE event with its amounts (#289)
         audited_bulk_delete(db, db.query(BillLine).filter(BillLine.bill_id == bill.id))
         db.flush()
+        billed_before = []
         if txn:
+            # bsq: costs already billed on an invoice stay billed
+            from app.services.billable_costs import billed_snapshot
+
+            billed_before = billed_snapshot(db, txn.id)
             _reverse_and_delete_journal(db, txn.id)
             txn.date = bill.date
             txn.class_id = bill.class_id
@@ -674,6 +679,10 @@ def update_bill(bill_id: int, data: BillUpdate, db: Session = Depends(get_db)):
             existing_transaction=txn,
         )
         db.flush()
+        if txn and billed_before:
+            from app.services.billable_costs import restore_billed
+
+            restore_billed(db, txn.id, billed_before)
         db.refresh(bill)
 
         if bill.balance_due == 0 and amount_paid >= bill.total:

@@ -349,6 +349,8 @@ def split_lines_out(db: Session, txn) -> list[dict]:
                 "customer_job": (cust if job is None or job.name == cust else f"{cust} : {job.name}"),
                 "memo": ln.description or "",
                 "is_billable": bool(getattr(ln, "is_billable", False)),
+                # bsq: already on an invoice
+                "billed": getattr(ln, "billed_invoice_line_id", None) is not None,
             }
         )
     return rows

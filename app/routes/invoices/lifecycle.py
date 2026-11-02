@@ -44,6 +44,10 @@ def void_invoice(invoice_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Invoice not found")
     if invoice.status == InvoiceStatus.VOID:
         raise HTTPException(status_code=400, detail="Invoice already voided")
+    # bsq: its billable costs can be billed again
+    from app.services.billable_costs import release_invoice
+
+    release_invoice(db, invoice.id)
     # Voiding an invoice with payments applied would reverse the full A/R
     # while the payment's cash-receipt JE + allocations stay on the books —
     # double-counting cash and reversing A/R twice. Require the payment(s)

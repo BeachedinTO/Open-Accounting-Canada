@@ -51,6 +51,8 @@ class ExpenseResponse(BaseModel):
     vendor_id: Optional[int] = None
     expense_account_name: str = ""
     paid_from_account_name: str = ""
+    paid_from_account_id: Optional[int] = None  # bsq: for editing
+    class_id: Optional[int] = None
     amount: float
     tax_amount: float = 0.0  # bsq: HST input tax credit included in amount
     reference: str = ""

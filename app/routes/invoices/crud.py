@@ -230,6 +230,7 @@ def create_invoice(data: InvoiceCreate, db: Session = Depends(get_db)):
             "retries; please retry the request.",
         ) from last_err
 
+    billed_pairs = []
     for i, line_data in enumerate(data.lines):
         line = InvoiceLine(
             invoice_id=invoice.id,
@@ -248,6 +249,15 @@ def create_invoice(data: InvoiceCreate, db: Session = Depends(get_db)):
             line_order=line_data.line_order or i,
         )
         db.add(line)
+        if getattr(line_data, "billable_cost_id", None):
+            billed_pairs.append((line, line_data.billable_cost_id))
+
+    if billed_pairs:
+        # bsq: the billable costs this invoice bills are now billed
+        from app.services.billable_costs import bill_costs
+
+        db.flush()
+        bill_costs(db, invoice.customer_id, billed_pairs)
 
     txn = _post_invoice_journal(db, invoice, data.lines, cust_name)
     invoice.transaction_id = txn.id
@@ -489,14 +499,20 @@ def update_invoice(invoice_id: int, data: InvoiceUpdate, db: Session = Depends(g
         )
 
         if data.lines is not None:
+            # bsq: costs billed on the old lines are freed; the new lines
+            # bill what they name
+            from app.services.billable_costs import bill_costs, release_invoice
+
+            release_invoice(db, invoice_id)
+            db.flush()
             # each old line leaves a DELETE event with its amounts (#289)
             audited_bulk_delete(
                 db, db.query(InvoiceLine).filter(InvoiceLine.invoice_id == invoice_id)
             )
             db.flush()
+            billed_pairs = []
             for i, line_data in enumerate(data.lines):
-                db.add(
-                    InvoiceLine(
+                new_line = InvoiceLine(
                         invoice_id=invoice_id,
                         item_id=line_data.item_id,
                         description=line_data.description,
@@ -517,8 +533,16 @@ def update_invoice(invoice_id: int, data: InvoiceUpdate, db: Session = Depends(g
                         ),
                         line_order=line_data.line_order or i,
                     )
-                )
+                db.add(new_line)
+                if getattr(line_data, "billable_cost_id", None):
+                    billed_pairs.append((new_line, line_data.billable_cost_id))
             db.flush()
+            if billed_pairs:
+                bill_costs(
+                    db,
+                    update_data.get("customer_id", invoice.customer_id),
+                    billed_pairs,
+                )
             # Reload so invoice.lines reflects the new rows
             db.refresh(invoice)
         invoice.subtotal = subtotal
