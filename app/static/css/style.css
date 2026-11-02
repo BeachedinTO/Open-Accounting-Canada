@@ -2921,3 +2921,33 @@ tbody tr.row--dim > td.amount { color: var(--text-muted); }
     vertical-align: -4px;
     margin-right: 6px;
 }
+
+/* bsq: the cheque form's header, shaped like the cheque it records */
+.cheque-box {
+    background: #eef5ec;
+    border: 1px solid #b9cdb4;
+    border-radius: 6px;
+    padding: 12px 14px 4px;
+    margin-bottom: 8px;
+}
+.cheque-words-row, .form-group.cheque-words-row {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+    border-bottom: 1px solid #6b7d66;
+    min-height: 1.6em;
+    font-size: 14px;
+    color: #1f2a1d;
+}
+.cheque-words-row #cheque-words { flex: 1; }
+.cheque-dollars { font-size: 11px; color: #4b5a48; }
+.cheque-address {
+    white-space: pre-line;
+    min-height: 3.6em;
+    padding: 6px 8px;
+    border: 1px solid #c9d6c5;
+    border-radius: 4px;
+    background: #fff;
+    font-size: 13px;
+}

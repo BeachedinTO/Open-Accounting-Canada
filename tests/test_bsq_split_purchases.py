@@ -187,3 +187,72 @@ def test_moving_an_invoice_moves_it_to_the_new_customers_own_job(client, db_sess
     assert r.status_code == 200, r.text
     job = db_session.get(Job, r.json()["job_id"])
     assert job.customer_id == b["id"] and job.name == "9 Pine Court"
+
+
+def _subcontract(db_session):
+    from app.models.accounts import Account
+
+    sub = db_session.query(Account).filter(Account.account_number == "5300").first()
+    if sub is None:
+        sub = Account(name="Subcontractor Costs", account_number="5300", account_type="cogs")
+        db_session.add(sub)
+        db_session.commit()
+    return sub
+
+
+def test_the_sample_bill_decks_and_fences(client, db_session, seed_accounts):
+    """Alex's QuickBooks bill: one Subcontracted Services line for 16 Carey
+    Road, tax code H. 5,694.91 + HST 740.34 = 6,435.25."""
+    sub = _subcontract(db_session)
+    c = _cust(client, "16 Carey Road")
+    v = client.post("/api/vendors", json={"name": "Decks and Fences by Design"}).json()
+    r = client.post("/api/bills", json={
+        "vendor_id": v["id"], "date": "2014-11-26", "due_date": "2014-12-06", "tax_rate": 0.13,
+        "lines": [{"account_id": sub.id, "customer_id": c["id"], "quantity": 1, "rate": 5694.91,
+                   "description": "Balance of 16 Carey Rd. ( $11,435.25 - $5,000 deposit)", "is_taxable": True}],
+    })
+    assert r.status_code == 201, r.text
+    b = r.json()
+    assert Decimal(str(b["tax_amount"])) == Decimal("740.34")
+    assert Decimal(str(b["total"])) == Decimal("6435.25")
+    assert b["due_date"] == "2014-12-06"
+    assert b["lines"][0]["is_taxable"] is True
+    assert _gl(db_session, _itc(client)) == Decimal("740.34")
+    html = client.get(f"/api/bills/{b['id']}/print-preview").text
+    for text in ("Ref. No.", "Expenses", "16 Carey Road", "(ITC)", "Input Tax Credit", "740.34", "6,435.25", "Bill Total"):
+        assert text in html, text
+
+
+def test_a_bill_line_without_hst_is_not_taxed(client, db_session, seed_accounts):
+    sub = _subcontract(db_session)
+    v = client.post("/api/vendors", json={"name": "City of Toronto"}).json()
+    r = client.post("/api/bills", json={
+        "vendor_id": v["id"], "date": "2026-11-02", "tax_rate": 0.13,
+        "lines": [
+            {"account_id": sub.id, "quantity": 1, "rate": 1000, "is_taxable": True},
+            {"account_id": sub.id, "quantity": 1, "rate": 500, "is_taxable": False},
+        ],
+    })
+    assert r.status_code == 201, r.text
+    assert Decimal(str(r.json()["tax_amount"])) == Decimal("130.00")
+    assert Decimal(str(r.json()["total"])) == Decimal("1630.00")
+
+
+def test_the_sample_cheque_864_two_projects(client, db_session, seed_accounts):
+    """Alex's QuickBooks cheque 864: 221.17 + 4,249.50, tax code H,
+    Total Taxes 581.19, cheque 5,051.86."""
+    sub = _subcontract(db_session)
+    a = _cust(client, "493 Brunswick Avenue")
+    b = _cust(client, "34 Oswald Crescent")
+    r = client.post("/api/expenses", json={
+        "date": "2015-10-20", "paid_from_account_id": seed_accounts["1000"].id,
+        "payee": "Decks and Fences by Design", "reference": "864",
+        "amount": "5051.86", "tax_amount": "581.19",
+        "lines": [
+            {"account_id": sub.id, "amount": "221.17", "customer_id": a["id"], "memo": "repair under step and fence"},
+            {"account_id": sub.id, "amount": "4249.50", "customer_id": b["id"], "memo": "P/T steps and landing/skirting"},
+        ],
+    })
+    assert r.status_code == 201, r.text
+    x = r.json()
+    assert (x["reference"], x["amount"], x["tax_amount"]) == ("864", 5051.86, 581.19)

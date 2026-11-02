@@ -349,7 +349,8 @@ def test_the_bill_form_fills_from_the_bill_and_saves_with_put():
     form = _method(js, "async showForm(id = null)")
     assert "id ? API.get(`/bills/${id}`)" in form
     assert "Edit Bill ${bill.bill_number}" in form
-    assert "bill.lines.forEach(l => BillsPage.addLine(l))" in form
+    # bsq: expense lines (account + amount) fill Expenses, the rest Items
+    assert "bill.lines.forEach(l => BillsPage._isExpenseLine(l) ? BillsPage.addExp(l) : BillsPage.addLine(l))" in form
     assert "A voided bill cannot be edited" in form
     row = _method(js, "lineHtml(idx, line = null)")
     # a stored line comes back with everything it carries (the #188 lesson)

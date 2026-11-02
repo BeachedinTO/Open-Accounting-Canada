@@ -20,6 +20,7 @@ from sqlalchemy import (
     ForeignKey,
     func,
 )
+from sqlalchemy import true as sa_true
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -106,6 +107,9 @@ class BillLine(Base):
     function = Column(String(20), nullable=True)  # nonprofit function
     # Cost billable to the job's customer; set when it is pulled onto an invoice
     is_billable = Column(Boolean, nullable=False, default=False)
+    # bsq: HST charged on this line (QuickBooks' tax code H); the bill's
+    # tax is its rate on the ticked lines
+    is_taxable = Column(Boolean, nullable=False, default=True, server_default=sa_true())
     billed_invoice_line_id = Column(
         Integer, ForeignKey("invoice_lines.id"), nullable=True
     )

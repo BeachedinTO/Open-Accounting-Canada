@@ -198,10 +198,45 @@ const BillsPage = {
             terms.value = vendor.terms;
         }
         if (BillsPage._defaultExpenseAccountId) {
-            $$('#bill-lines .line-account').forEach(sel => {
+            $$('#bill-lines .line-account, #bill-exp-lines .bx-acct').forEach(sel => {
                 if (!sel.disabled && !sel.value) sel.value = BillsPage._defaultExpenseAccountId;
             });
         }
+        BillsPage.showAddress(vendor);
+    },
+
+    // bsq: the vendor's address under its name, as on the QuickBooks bill
+    showAddress(vendor) {
+        const box = document.getElementById('bill-vendor-address');
+        if (!box) return;
+        const v = vendor || {};
+        const cityLine = [v.city, v.state].filter(Boolean).join(', ') + (v.zip ? '  ' + v.zip : '');
+        box.textContent = [v.address1, v.address2, cityLine.trim()].filter(Boolean).join('\n');
+    },
+
+    // bsq: the Expenses section, as QuickBooks has it: an account, HST (tax
+    // code H), the amount, a memo, the customer or job and billable. Saved
+    // as a bill line of quantity 1.
+    expHtml(line = null) {
+        const l = line || {};
+        const acctOpts = PurchaseAccounts.options(BillsPage._accounts, l.account_id || BillsPage._defaultExpenseAccountId);
+        const taxed = line ? l.is_taxable !== false : (BillsPage._taxRate || 0) > 0;
+        return `<tr class="bill-exp-row">
+                <td><select class="bx-acct"><option value="">Choose...</option>${acctOpts}</select></td>
+                <td style="text-align:center;"><input type="checkbox" class="bx-tax" title="HST charged on this line (tax code H)"${taxed ? ' checked' : ''} onchange="BillsPage.recalc()"></td>
+                <td><input class="bx-amt" type="number" step="0.01" value="${line ? Number(l.amount || (Number(l.quantity) * Number(l.rate))).toFixed(2) : ''}" oninput="BillsPage.recalc()"></td>
+                <td><input class="bx-memo" value="${escapeHtml(l.description || '')}"></td>
+                <td><select class="bx-cj">${CustomerJob.options(l.job_id)}</select></td>
+                <td style="text-align:center;"><input type="checkbox" class="bx-bill" title="Billable to the customer"${l.is_billable ? ' checked' : ''}></td>
+                <td><button type="button" class="btn btn-sm btn-secondary" aria-label="Remove line" onclick="this.closest('tr').remove(); BillsPage.recalc()">×</button></td>
+            </tr>`;
+    },
+    addExp(line = null) {
+        document.getElementById('bill-exp-lines').insertAdjacentHTML('beforeend', BillsPage.expHtml(line));
+    },
+    // a stored line belongs in Expenses when it is an account and an amount
+    _isExpenseLine(l) {
+        return !l.item_id && Number(l.quantity) === 1;
     },
 
     // Enter Bill, or with an id the same form filled from the bill, to
@@ -255,11 +290,16 @@ const BillsPage = {
                 ${bill ? '' : ScanHelper.scanRowHtml()}
                 <div class="form-grid">
                     <div class="form-group"><label>Vendor *</label>
-                        ${VendorQuickAdd.html(vendors, { id: 'bill-vendor', onchange: 'BillsPage.vendorSelected(this.value)' })}</div>
-                    <div class="form-group"><label>Bill Number</label>
-                        <input name="bill_number" placeholder="from the receipt, or left blank" value="${bill ? escapeHtml(bill.bill_number || '') : ''}"></div>
+                        ${VendorQuickAdd.html(vendors, { id: 'bill-vendor', onchange: 'BillsPage.vendorSelected(this.value)' })}
+                        <div id="bill-vendor-address" aria-label="Vendor address" style="white-space:pre-line; font-size:12px; color:var(--gray-600); margin-top:4px; min-height:1em;"></div></div>
                     <div class="form-group"><label>Date *</label>
                         <input name="date" type="date" required value="${bill ? bill.date : todayISO()}"></div>
+                    <div class="form-group"><label>Ref. No.</label>
+                        <input name="bill_number" placeholder="the vendor's invoice #, or left blank" value="${bill ? escapeHtml(bill.bill_number || '') : ''}"></div>
+                    <div class="form-group"><label>Amount Due</label>
+                        <input id="bill-amount-due" readonly tabindex="-1" aria-label="Amount due" value="$0.00"></div>
+                    <div class="form-group"><label>Bill Due</label>
+                        <input name="due_date" type="date" title="Left blank, the due date follows from the terms" value="${bill && bill.due_date ? bill.due_date : ''}"></div>
                     <div class="form-group"><label>Terms</label>
                         <select name="terms" title="The vendor's terms; the due date follows from them">
                             ${termChoices.map(t =>
@@ -273,7 +313,13 @@ const BillsPage = {
                     ${classGroup}${jobGroup}
                     ${currencyFormGroupsHtml(bill ? bill.currency : undefined, bill ? bill.exchange_rate : undefined)}
                 </div>
-                <h3 style="margin:12px 0 8px;font-size:14px;">Line Items</h3>
+                <h3 style="margin:12px 0 8px;font-size:14px;">Expenses <span id="bill-exp-total" style="font-weight:400;color:var(--gray-600);"></span></h3>
+                <div class="table-container"><table class="line-items-table bill-exp-table">
+                    <thead><tr><th scope="col">Expense account</th><th scope="col" title="HST charged on this line (tax code H)">Tax</th><th scope="col" class="col-amount">Amount</th><th scope="col">Memo</th><th scope="col">${T('Customer')}:${T('Job')}</th><th scope="col" title="Billable to the customer">Billable</th><th scope="col"></th></tr></thead>
+                    <tbody id="bill-exp-lines"></tbody>
+                </table></div>
+                <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px;" onclick="BillsPage.addExp()">+ Add expense line</button>
+                <h3 style="margin:16px 0 8px;font-size:14px;">Items <span style="font-weight:400;color:var(--gray-600);font-size:12px;">(products with a quantity and price; leave blank if none)</span></h3>
                 <div class="table-container table-container--scroll"><table class="line-items-table bill-lines-table">
                     <thead><tr><th scope="col">Item</th><th scope="col" title="Where the line is recorded">Account</th><th scope="col">Description</th><th scope="col" title="The customer or job this cost is for">${T('Customer')}:${T('Job')}</th>${CostCodes.headHtml()}${Nonprofit.headHtml()}<th scope="col" title="Billable to the job's customer">Bill?</th><th scope="col" class="col-qty">Qty</th><th scope="col" class="col-rate">Rate</th><th scope="col" class="col-amount">Amount</th></tr></thead>
                     <tbody id="bill-lines">${bill ? '' : BillsPage.lineHtml(0)}</tbody>
@@ -281,10 +327,10 @@ const BillsPage = {
                 <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px;" onclick="BillsPage.addLine()">+ Add Line</button>
                 <div class="invoice-totals">
                     <div class="total-row"><span class="label">Subtotal</span><span class="value" id="bill-subtotal">$0.00</span></div>
-                    <div class="total-row" title="HST the vendor charged: posts to 1350 HST Recoverable (ITCs)"><span class="label">HST</span><span class="value" id="bill-tax">$0.00</span></div>
-                    <div class="total-row grand-total"><span class="label">Total</span><span class="value" id="bill-total">$0.00</span></div>
+                    <div class="total-row" title="HST the vendor charged: posts to 1350 HST Recoverable (ITCs)"><span class="label">Total Taxes</span><span class="value" id="bill-tax">$0.00</span></div>
+                    <div class="total-row grand-total"><span class="label">Amount Due</span><span class="value" id="bill-total">$0.00</span></div>
                 </div>
-                <div class="form-group" style="margin-top:12px;"><label>Notes</label>
+                <div class="form-group" style="margin-top:12px;"><label>Memo</label>
                     <textarea name="notes">${bill ? escapeHtml(bill.notes || '') : ''}</textarea></div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="ScanHelper.discard(); closeModal()">Cancel</button>
@@ -294,10 +340,13 @@ const BillsPage = {
         if (bill) {
             const vendorSel = document.getElementById('bill-vendor');
             if (vendorSel) vendorSel.value = bill.vendor_id;
+            BillsPage.showAddress(vendors.find(v => v.id == bill.vendor_id));
             BillsPage.lineCount = 0;
-            bill.lines.forEach(l => BillsPage.addLine(l));
+            bill.lines.forEach(l => BillsPage._isExpenseLine(l) ? BillsPage.addExp(l) : BillsPage.addLine(l));
+            if (!document.querySelector('#bill-exp-lines tr')) BillsPage.addExp();
             BillsPage.recalc();
         } else {
+            BillsPage.addExp();
             ScanHelper.wire(BillsPage._applyScan, BillsPage._applyScanField, BillsPage._scanFieldTarget);
             if (startVendor) {
                 const sel = document.getElementById('bill-vendor');
@@ -319,7 +368,7 @@ const BillsPage = {
         const stock = !!(item && item.track_inventory);
         const itemOpts = BillsPage._items.map(i => `<option value="${i.id}"${l.item_id == i.id ? ' selected' : ''}>${escapeHtml(i.name)}</option>`).join('');
         const acctOpts = PurchaseAccounts.options(BillsPage._accounts, stock ? null : (l.account_id || BillsPage._defaultExpenseAccountId));
-        return `<tr data-billline="${idx}">
+        return `<tr data-billline="${idx}"${l.is_taxable === false ? ' data-taxed="false"' : ''}>
                 <td><select class="line-item" onchange="BillsPage.itemSelected(this)"><option value="">--</option>${itemOpts}</select></td>
                 <td><select class="line-account"${stock ? ' disabled title="Stock items are recorded in Inventory"' : ''}><option value="">Choose...</option>${acctOpts}</select></td>
                 <td><input class="line-desc" value="${escapeHtml(l.description || '')}"></td>
@@ -445,16 +494,24 @@ const BillsPage = {
     },
 
     recalc() {
-        let subtotal = 0;
+        let subtotal = 0, taxed = 0, expenses = 0;
         $$('#bill-lines tr').forEach(row => {
-            const amount = PurchaseLines.lineAmount(row);
+            const amount = PurchaseLines.cents(PurchaseLines.lineAmount(row));
             subtotal += amount;
+            if (row.dataset.taxed !== 'false') taxed += amount;
             const amountCell = row.querySelector('.line-amount');
             if (amountCell) amountCell.textContent = formatCurrency(amount);
         });
+        $$('#bill-exp-lines tr').forEach(row => {
+            const amount = PurchaseLines.cents(parseFloat(row.querySelector('.bx-amt').value) || 0);
+            subtotal += amount; expenses += amount;
+            if (row.querySelector('.bx-tax').checked) taxed += amount;
+        });
         subtotal = PurchaseLines.cents(subtotal);
-        // the tax as the server works it: the rate on the subtotal, to the cent
-        const tax = PurchaseLines.cents(subtotal * (BillsPage._taxRate || 0));
+        // the tax as the server works it: the rate on the ticked lines, to the cent
+        const tax = PurchaseLines.cents(PurchaseLines.cents(taxed) * (BillsPage._taxRate || 0));
+        const expEl = document.getElementById('bill-exp-total');
+        if (expEl) expEl.textContent = formatCurrency(PurchaseLines.cents(expenses));
         const total = PurchaseLines.cents(subtotal + tax);
         const subEl = $('#bill-subtotal');
         if (subEl) subEl.textContent = formatCurrency(subtotal);
@@ -462,6 +519,8 @@ const BillsPage = {
         if (taxEl) taxEl.textContent = formatCurrency(tax);
         const totalEl = $('#bill-total');
         if (totalEl) totalEl.textContent = formatCurrency(total);
+        const dueEl = document.getElementById('bill-amount-due');
+        if (dueEl) dueEl.value = formatCurrency(total);
         return total;
     },
 
@@ -499,11 +558,35 @@ const BillsPage = {
         const form = e.target;
         const lines = [];
         let missing = null;
+        $$('#bill-exp-lines tr').forEach(row => {
+            const amt = parseFloat(row.querySelector('.bx-amt').value) || 0;
+            const acct = row.querySelector('.bx-acct');
+            const memo = row.querySelector('.bx-memo').value || '';
+            if (!amt && !acct.value && !memo) return;  // a blank row
+            if (!missing && !acct.value && amt > 0) missing = { n: lines.length + 1, sel: acct };
+            lines.push({
+                item_id: null,
+                account_id: acct.value ? parseInt(acct.value) : null,
+                description: memo,
+                ...CustomerJob.parse(row.querySelector('.bx-cj').value),
+                quantity: 1,
+                rate: amt,
+                is_billable: !!row.querySelector('.bx-bill').checked,
+                is_taxable: !!row.querySelector('.bx-tax').checked,
+                line_order: lines.length,
+            });
+        });
+        const nExp = lines.length;
+        // an Items line keeps the HST flag it was saved with (taxed if new)
+        const line_taxed = row => row.dataset.taxed !== 'false';
         $$('#bill-lines tr').forEach((row, i) => {
+            // a blank Items row is left out
+            if (nExp && !row.querySelector('.line-item')?.value && !(row.querySelector('.line-desc')?.value)
+                && !PurchaseLines.lineAmount(row)) return;
             const acct = row.querySelector('.line-account');
             const accountId = acct && !acct.disabled && acct.value ? parseInt(acct.value) : null;
             if (!missing && acct && !acct.disabled && !accountId && PurchaseLines.lineAmount(row) > 0) {
-                missing = { n: i + 1, sel: acct };
+                missing = { n: nExp + i + 1, sel: acct };
             }
             lines.push({
                 item_id: row.querySelector('.line-item')?.value ? parseInt(row.querySelector('.line-item').value) : null,
@@ -516,13 +599,14 @@ const BillsPage = {
                 class_id: Nonprofit.fundFromRow(row, 'line-function'),
                 ...Nonprofit.linePayload(row, 'line-function'),
                 is_billable: !!row.querySelector('.line-billable')?.checked,
-                line_order: i,
+                is_taxable: line_taxed(row),
+                line_order: nExp + i,
             });
         });
         // A bill for $0.00 is refused (item picks used to leave the rate at
         // 0 and save one silently — W-M1).
         if (BillsPage.recalc() <= 0) {
-            toast('Enter what the vendor charged: a quantity and rate on at least one line.', 'error');
+            toast('Enter what the vendor charged: an amount on an expense line, or a quantity and rate on an item.', 'error');
             return;
         }
         if (missing) {
@@ -538,6 +622,7 @@ const BillsPage = {
                 bill_number: form.bill_number.value.trim() || null,
                 date: form.date.value,
                 terms: form.terms.value,
+                ...(form.due_date && form.due_date.value ? { due_date: form.due_date.value } : {}),
                 notes: form.notes.value || null,
                 class_id: classIdFromForm(form),
                 job_id: jobIdFromForm(form),

@@ -139,7 +139,7 @@ def test_edit_shows_a_taxed_bills_tax_and_its_own_total(
         assert shown == {
             "amounts": ["$33.43", "$0.30"],
             "subtotal": "$33.73",
-            "taxLabel": "HST",  # bsq: the label is HST
+            "taxLabel": "Total Taxes",  # bsq: as QuickBooks labels it
             "tax": "$1.69",
             "total": "$35.42",
         }

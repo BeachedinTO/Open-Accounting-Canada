@@ -23,6 +23,8 @@ class BillLineCreate(StrictModel):
     cost_code_id: Optional[int] = None
     function: Optional[str] = None
     is_billable: bool = False
+    # bsq: HST on this line (QuickBooks' tax code H); left out, it is taxed
+    is_taxable: Optional[bool] = None
     description: Optional[str] = None
     quantity: float = 1
     rate: float = 0
@@ -43,6 +45,7 @@ class BillLineResponse(BaseModel):
     cost_code_id: Optional[int] = None
     function: Optional[str] = None
     is_billable: bool = False
+    is_taxable: bool = True
     description: Optional[str] = None
     quantity: Decimal = Decimal("0")
     rate: RateOut = Decimal("0")

@@ -252,7 +252,8 @@ def test_a_grid_field_says_its_column_and_row(browser, company, books):
         cleared = page.evaluate(GRID, ["#page-content td input[type=checkbox]", 2])
     finally:
         page.close()
-    assert bill_line[:2] == ["Item, line 1", "Account, line 1"], bill_line
+    # bsq: the Expenses section comes first, as on the QuickBooks bill
+    assert bill_line[:2] == ["Expense account, line 1", "Customer:Job, line 1"], bill_line
     assert budget and all(n.endswith(f", {row}") for n, row in budget), budget
     assert budget[0][0].startswith("Jan, ")
     assert amounts and all(n == f"Payment, {inv}" for n, inv in amounts), amounts

@@ -95,7 +95,28 @@ def _bill_html(db: Session, bill_id: int) -> tuple[Bill, str]:
     bill = db.query(Bill).filter(Bill.id == bill_id).first()
     if not bill:
         raise HTTPException(status_code=404, detail="Bill not found")
-    return bill, _render("bill_pdf.html", get_all_settings(db), bill=bill)
+    # bsq: each line's Customer:Job, as QuickBooks prints it (the job
+    # named after its customer is just the customer)
+    from app.models.jobs import Job
+
+    line_jobs = {}
+    for ln in bill.lines:
+        job = db.get(Job, ln.job_id) if ln.job_id else None
+        if job is not None:
+            cust = job.customer.name if job.customer else ""
+            line_jobs[ln.id] = (
+                cust if (job.name or "").lower() == cust.lower() else f"{cust}:{job.name}".strip(":")
+            )
+    expense_lines = [ln for ln in bill.lines if not ln.item_id and ln.quantity == 1]
+    item_lines = [ln for ln in bill.lines if ln not in expense_lines]
+    return bill, _render(
+        "bill_pdf.html",
+        get_all_settings(db),
+        bill=bill,
+        line_jobs=line_jobs,
+        expense_lines=expense_lines,
+        item_lines=item_lines,
+    )
 
 
 @router.get("/{bill_id}/pdf")
@@ -194,7 +215,14 @@ def _post_bill_lines(
     # carries its share, and nothing is posted to Sales Tax Payable.
     # bsq: with recoverable purchase tax (HST ITCs) the shares are 0 and
     # `itc` is the whole tax, posted to 1350 instead.
-    tax_shares, itc = purchase_tax_split(db, tax_amount, amounts)
+    # bsq: only the lines with HST share the tax
+    taxed_amounts = [
+        a if getattr(ln, "is_taxable", None) is not False else Decimal("0")
+        for a, ln in zip(amounts, lines)
+    ]
+    if not any(taxed_amounts):
+        taxed_amounts = amounts
+    tax_shares, itc = purchase_tax_split(db, tax_amount, taxed_amounts)
 
     journal_lines = []
     for i, line_data in enumerate(lines):
@@ -263,6 +291,7 @@ def _post_bill_lines(
                 cost_code_id=line_data.cost_code_id,
                 function=line_data.function,
                 is_billable=line_data.is_billable,
+                is_taxable=getattr(line_data, "is_taxable", None) is not False,
                 line_order=line_data.line_order or i,
             )
         )

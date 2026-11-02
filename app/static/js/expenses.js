@@ -1,3 +1,28 @@
+/* bsq: a cheque's amount in words, as QuickBooks prints it:
+ * 5051.86 -> "Five thousand fifty-one and 86/100" */
+function chequeWords(amount) {
+    const ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
+        'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+    const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+    const under1000 = n => {
+        const out = [];
+        if (n >= 100) { out.push(ones[Math.floor(n / 100)] + ' hundred'); n %= 100; }
+        if (n >= 20) out.push(tens[Math.floor(n / 10)] + (n % 10 ? '-' + ones[n % 10] : ''));
+        else if (n > 0) out.push(ones[n]);
+        return out.join(' ');
+    };
+    const cents = Math.round(amount * 100);
+    let dollars = Math.floor(cents / 100);
+    const parts = [];
+    for (const [size, name] of [[1e9, 'billion'], [1e6, 'million'], [1e3, 'thousand']]) {
+        if (dollars >= size) { parts.push(under1000(Math.floor(dollars / size)) + ' ' + name); dollars %= size; }
+    }
+    if (dollars) parts.push(under1000(dollars));
+    let words = parts.join(' ') || 'zero';
+    words = words.charAt(0).toUpperCase() + words.slice(1);
+    return `${words} and ${String(cents % 100).padStart(2, '0')}/100`;
+}
+
 /**
  * Expenses — record a receipt that's already been paid.
  * DR Expense Account, CR the bank / credit-card account it was paid from.
@@ -66,10 +91,10 @@ const SplitPurchase = {
     _acctOpts: '',
     tableHtml(expenseAccts, firstAccountId) {
         SplitPurchase._acctOpts = PurchaseAccounts.options(expenseAccts);
-        return `<h3 style="margin:12px 0 8px;font-size:14px;">What it was for</h3>
+        return `<h3 style="margin:12px 0 8px;font-size:14px;">Expenses</h3>
             <div class="table-container table-container--scroll"><table class="line-items-table split-lines-table">
-                <thead><tr><th scope="col">Type of expense</th><th scope="col" title="HST charged on this line (13%)">HST</th><th scope="col" class="col-amount">Amount (before HST)</th><th scope="col">Description</th><th scope="col">${T('Customer')}:${T('Job')}</th>
-                    <th scope="col" title="Billable to the customer">Bill?</th><th scope="col"></th></tr></thead>
+                <thead><tr><th scope="col" title="The type of expense">Account</th><th scope="col" title="HST charged on this line (tax code H, 13%)">Tax</th><th scope="col" class="col-amount" title="Before HST">Amount</th><th scope="col">Memo</th><th scope="col">${T('Customer')}:${T('Job')}</th>
+                    <th scope="col" title="Billable to the customer">Billable</th><th scope="col"></th></tr></thead>
                 <tbody class="split-lines">${SplitPurchase.rowHtml(firstAccountId)}</tbody>
             </table></div>
             <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px;" onclick="SplitPurchase.addRow(this.form)">+ Add line</button>
@@ -146,8 +171,10 @@ const SplitPurchase = {
         if (!box) return;
         SplitPurchase.autofill(form);
         const t = SplitPurchase.totals(form);
+        const words = form.querySelector('#cheque-words');
+        if (words) words.textContent = t.paid > 0 ? chequeWords(t.paid) : '';
         const ok = t.left === 0 && t.paid > 0;
-        box.innerHTML = `Lines ${formatCurrency(t.lines)} + HST ${formatCurrency(t.hst)} = <strong>${formatCurrency(SplitPurchase.cents(t.lines + t.hst))}</strong>
+        box.innerHTML = `Expenses ${formatCurrency(t.lines)} + Total Taxes ${formatCurrency(t.hst)} = <strong>${formatCurrency(SplitPurchase.cents(t.lines + t.hst))}</strong>
             &nbsp;·&nbsp; Amount paid ${formatCurrency(t.paid)} &nbsp;·&nbsp;
             <span style="font-weight:700; color:${ok ? 'var(--text-success, #2e7d32)' : 'var(--text-danger, #c62828)'};">${ok ? 'Balanced' : `Left to assign ${formatCurrency(t.left)}`}</span>`;
     },
@@ -252,23 +279,28 @@ const ExpensesPage = {
         openModal('Enter Purchase (cheque, debit, cash, e-transfer)', `
             <form id="expense-form" onsubmit="ExpensesPage.save(event)">
                 ${ScanHelper.scanRowHtml()}
-                <div class="form-grid">
-                    <div class="form-group"><label>Vendor *</label>
-                        ${VendorQuickAdd.html(vendors, { id: 'expense-vendor', onchange: 'ExpensesPage.vendorSelected(this.value)' })}</div>
-                    <div class="form-group"><label>Date *</label>
-                        <input name="date" type="date" required value="${todayISO()}"></div>
-                    <div class="form-group"><label>Paid From *</label>
-                        <select name="paid_from_account_id" required>${paidFrom.map(acctOpt).join('')}</select></div>
-                    <div class="form-group"><label>Amount paid (with HST) *</label>
-                        <input name="amount" type="number" step="0.01" min="0.01" required title="Filled in from the lines and HST; type over it to enter the total from the cheque or receipt"></div>
-                    ${HstField.html(hstOn)}
-                    <div class="form-group"><label>Cheque # / Ref</label>
-                        <input name="reference" placeholder="Cheque number, or debit, cash, e-transfer"></div>
-                    ${classGroup}${Nonprofit.functionFormGroupHtml()}
-                    <div class="form-group full-width"><label>Memo</label>
-                        <textarea name="memo" rows="1"></textarea></div>
+                <div class="cheque-box">
+                    <div class="form-grid">
+                        <div class="form-group"><label>Bank account (paid from) *</label>
+                            <select name="paid_from_account_id" required>${paidFrom.map(acctOpt).join('')}</select></div>
+                        <div class="form-group"><label>No.</label>
+                            <input name="reference" placeholder="Cheque number, or debit, cash, e-transfer"></div>
+                        <div class="form-group"><label>Date *</label>
+                            <input name="date" type="date" required value="${todayISO()}"></div>
+                        <div class="form-group"><label>Pay to the order of *</label>
+                            ${VendorQuickAdd.html(vendors, { id: 'expense-vendor', onchange: 'ExpensesPage.vendorSelected(this.value)' })}</div>
+                        <div class="form-group"><label>$ Amount (with HST) *</label>
+                            <input name="amount" type="number" step="0.01" min="0.01" required title="Filled in from the lines and HST; type over it to enter the total from the cheque or receipt"></div>
+                        <div class="form-group full-width cheque-words-row"><span id="cheque-words" aria-live="polite"></span> <span class="cheque-dollars">Dollars</span></div>
+                        <div class="form-group"><label>Address</label>
+                            <div id="expense-vendor-address" aria-label="Payee address" class="cheque-address"></div></div>
+                        <div class="form-group"><label>Memo</label>
+                            <textarea name="memo" rows="1"></textarea></div>
+                        ${classGroup}${Nonprofit.functionFormGroupHtml()}
+                    </div>
                 </div>
                 ${SplitPurchase.tableHtml(expenseAccts, '')}
+                <div class="form-grid" style="margin-top:8px;">${HstField.html(hstOn).replace('<label>HST included</label>', '<label>Total Taxes (HST)</label>')}</div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="ScanHelper.discard(); closeModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Expense</button>
@@ -286,6 +318,12 @@ const ExpensesPage = {
         const sel = document.querySelector('#expense-form .split-lines .sp-acct');
         if (vendor && vendor.default_expense_account_id && sel && !sel.value) {
             sel.value = vendor.default_expense_account_id;
+        }
+        const box = document.getElementById('expense-vendor-address');
+        if (box) {
+            const v = vendor || {};
+            const cityLine = ([v.city, v.state].filter(Boolean).join(', ') + (v.zip ? '  ' + v.zip : '')).trim();
+            box.textContent = [v.address1, v.address2, cityLine].filter(Boolean).join('\n');
         }
     },
 
