@@ -40,8 +40,12 @@ from app.models.transactions import Transaction
 from app.services.accounting import create_journal_entry
 
 SOURCE_TYPE = "qb_ledger_import"
-LEDGER_COLUMNS = ("Type", "Date", "Num", "Name", "Memo", "Split", "Debit", "Credit")
-_DATE_FORMATS = ("%m/%d/%Y", "%m/%d/%y")
+# bsq: the columns every layout has. The money is Debit and Credit, or (as
+# QuickBooks Desktop Canada prints the report by default) one Amount
+# column, a debit positive and a credit negative.
+LEDGER_COLUMNS = ("Type", "Date", "Num", "Name", "Memo", "Split")
+# bsq: QuickBooks Canada writes dates 2025-01-31
+_DATE_FORMATS = ("%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d")
 _HOW = (
     "Export it from QuickBooks Desktop as Reports > Accountant & Taxes > "
     "Transaction Detail by Account, with the dates set to All, and save it as CSV."
@@ -52,8 +56,20 @@ def is_ledger_header(cols: dict | None) -> bool:
     """The account-grouped layout: the ledger's columns and no Account
     column (the account is each section's heading)."""
     return (
-        bool(cols) and all(c in cols for c in LEDGER_COLUMNS) and "Account" not in cols
+        bool(cols)
+        and all(c in cols for c in LEDGER_COLUMNS)
+        and (("Debit" in cols and "Credit" in cols) or "Amount" in cols)
+        and "Account" not in cols
     )
+
+
+def _debit_credit(cell, row) -> tuple[Decimal, Decimal]:
+    """A row's debit and credit, from Debit/Credit or from Amount."""
+    debit, credit = _money(cell(row, "Debit")), _money(cell(row, "Credit"))
+    if debit or credit or not cell(row, "Amount"):
+        return debit, credit
+    amount = _money(cell(row, "Amount"))
+    return (amount, Decimal("0")) if amount > 0 else (Decimal("0"), -amount)
 
 
 def _money(raw: str) -> Decimal:
@@ -111,13 +127,17 @@ def parse_ledger(rows: list[list[str]], header_at: int, cols: dict):
                 if stack and stack[-1][0] == depth:
                     path = ":".join(name for _, name in stack)
                     try:
-                        totals.append(
-                            (
-                                path,
-                                _money(cell(row, "Debit")),
-                                _money(cell(row, "Credit")),
+                        if "Debit" in cols:
+                            totals.append(
+                                (
+                                    path,
+                                    _money(cell(row, "Debit")),
+                                    _money(cell(row, "Credit")),
+                                )
                             )
-                        )
+                        else:
+                            # one Amount: the section's net, checked as such
+                            totals.append((path, _money(cell(row, "Amount")), None))
                     except Exception:
                         notes.append(
                             f"Row {n}: the total for {text[6:]} could not be read"
@@ -135,7 +155,7 @@ def parse_ledger(rows: list[list[str]], header_at: int, cols: dict):
             )
             return [], errors, notes
         try:
-            debit, credit = _money(cell(row, "Debit")), _money(cell(row, "Credit"))
+            debit, credit = _debit_credit(cell, row)
             day = _date(cell(row, "Date"))
         except Exception:
             # the cells as they read, never the exception's own words
@@ -157,6 +177,8 @@ def parse_ledger(rows: list[list[str]], header_at: int, cols: dict):
                 "debit": debit,
                 "credit": credit,
                 "row": n,
+                # bsq: QuickBooks' own transaction number, when the report has it
+                "trans": cell(row, "Trans #"),
             }
         )
     # QuickBooks' own totals: a section's lines (and its sub-accounts') add
@@ -169,6 +191,14 @@ def parse_ledger(rows: list[list[str]], header_at: int, cols: dict):
         ]
         got_d = sum((ln["debit"] for ln in mine), Decimal("0"))
         got_c = sum((ln["credit"] for ln in mine), Decimal("0"))
+        if credit is None:
+            if got_d - got_c != debit:
+                errors.append(
+                    f"The lines under {path} come to {got_d - got_c:,.2f}, and "
+                    f"QuickBooks' total says {debit:,.2f}: the file looks cut short "
+                    "or edited. Export it again."
+                )
+            continue
         if (got_d, got_c) != (debit, credit):
             errors.append(
                 f"The lines under {path} come to {got_d:,.2f} debit and "
@@ -185,12 +215,33 @@ def group_journals(lines: list[dict]) -> tuple[list[list[dict]], list[str]]:
     and not the other: two halves of the same type and day that balance
     each other are one entry. A transaction that still does not balance is
     named."""
+    def off(group):
+        return sum((ln["debit"] - ln["credit"] for ln in group), Decimal("0"))
+
+    # bsq: with QuickBooks' Trans # column every line names its transaction,
+    # so a transaction is exactly its lines
+    if lines and all(ln.get("trans") for ln in lines):
+        by_trans: OrderedDict = OrderedDict()
+        for ln in lines:
+            by_trans.setdefault(ln["trans"], []).append(ln)
+        journals, errors = [], []
+        for group in by_trans.values():
+            if off(group) == 0:
+                journals.append(group)
+            else:
+                first = group[0]
+                errors.append(
+                    f"{first['type']} (QuickBooks Trans # {first['trans']}) of "
+                    f"{first['date']:%Y-%m-%d} does not balance ({off(group):,.2f} over "
+                    f"{len(group)} lines). If its date is before the start of the "
+                    "fiscal year in the report, export one fiscal year at a time."
+                )
+        journals.sort(key=lambda j: (j[0]["date"], j[0]["row"]))
+        return journals, errors
+
     by_key: OrderedDict = OrderedDict()
     for ln in lines:
         by_key.setdefault((ln["type"], ln["date"], ln["num"]), []).append(ln)
-
-    def off(group):
-        return sum((ln["debit"] - ln["credit"] for ln in group), Decimal("0"))
 
     journals: list[list[dict]] = []
     loose: list[list[dict]] = []
@@ -235,6 +286,9 @@ def group_journals(lines: list[dict]) -> tuple[list[list[dict]], list[str]]:
 
 def _reference(journal: list[dict], seen: dict) -> str:
     first = journal[0]
+    if first.get("trans"):
+        # bsq: QuickBooks' transaction number names it for good
+        return f"QB Trans # {first['trans']} · {first['date']:%Y-%m-%d}"[:100]
     base = f"{first['type']} {first['num']}".strip() + f" · {first['date']:%Y-%m-%d}"
     names = {ln["name"] for ln in journal if ln["name"]}
     if len(names) == 1:
