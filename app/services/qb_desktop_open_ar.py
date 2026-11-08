@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.models.accounts import Account, AccountType
 from app.models.invoices import Invoice, InvoiceLine, InvoiceStatus
+from app.models.items import Item
 from app.models.payments import Payment
 
 CARRY_ITEM = "QuickBooks open balance"
@@ -100,14 +101,11 @@ def parse(csv_text: str) -> dict:
         if not name:
             out["errors"].append(f"Row {n}: {what} names no customer")
             continue
-        t = ttype.lower()
-        if t == "invoice" and open_ > 0:
-            kind = "invoice"
-        elif t in ("payment", "credit memo") and open_ < 0:
-            kind = "payment"
+        if open_ > 0:
+            kind = "invoice"  # an invoice, or a journal or cheque QuickBooks put in A/R
+        elif open_ < 0:
+            kind = "payment"  # a payment, deposit, credit memo... not applied
         else:
-            left += open_
-            out["notes"].append(f"{what} ({open_:,.2f} open) isn't carried over; enter it by hand.")
             continue
         out["items"].append({"kind": kind, "type": ttype, "date": day, "num": num[:50],
                              "name": name[:200], "due_date": due, "open": open_, "row": n})
@@ -144,7 +142,23 @@ def _item(db: Session, clearing: Account):
     return item
 
 
-def carry_over(db: Session, csv_text: str, as_of: date, dry_run: bool = False) -> dict:
+def _number(db: Session, spec: dict, used: set) -> str:
+    """An invoice's own number; anything else (a journal, a cheque) named by
+    its type, so it can't take a real invoice's number."""
+    if spec["type"].lower() == "invoice" and spec["num"]:
+        base = spec["num"]
+    else:
+        base = f"QB {spec['type']} {spec['num'] or spec['date'].strftime('%Y-%m-%d')}".strip()
+    num, k = base[:50], 1
+    while num in used or db.query(Invoice).filter(Invoice.invoice_number == num).first():
+        k += 1
+        num = f"{base[:45]}-{k}"
+    used.add(num)
+    return num
+
+
+def carry_over(db: Session, csv_text: str, as_of: date, dry_run: bool = False,
+               merge_accounts: tuple = ()) -> dict:
     """Carry the report's open invoices and unapplied payments over.
     Refused whole (nothing written) on any error, when an invoice of that
     customer and number is here already, or when the report's open total
@@ -163,10 +177,23 @@ def carry_over(db: Session, csv_text: str, as_of: date, dry_run: bool = False) -
     total = sum((i["open"] for i in items), Decimal("0"))
     result["total"] = float(total)
     ar_id = get_ar_account_id(db)
-    ar = db.query(func.coalesce(func.sum(TransactionLine.debit - TransactionLine.credit), 0)).join(
-        Transaction, Transaction.id == TransactionLine.transaction_id).filter(
-        TransactionLine.account_id == ar_id, Transaction.date <= as_of).scalar()
-    ar = Decimal(str(ar or 0)).quantize(Decimal("0.01"))
+
+    def balance(account_id):
+        v = db.query(func.coalesce(func.sum(TransactionLine.debit - TransactionLine.credit), 0)).join(
+            Transaction, Transaction.id == TransactionLine.transaction_id).filter(
+            TransactionLine.account_id == account_id, Transaction.date <= as_of).scalar()
+        return Decimal(str(v or 0)).quantize(Decimal("0.01"))
+
+    # QuickBooks' other receivable accounts the aging spans (CRA Credit...),
+    # merged into Accounts Receivable
+    merged = []
+    for name in merge_accounts:
+        acct = db.query(Account).filter(Account.name == name).first()
+        if acct is None:
+            result["errors"].append(f"There's no account named {name} to merge into Accounts Receivable.")
+        else:
+            merged.append((acct, balance(acct.id)))
+    ar = balance(ar_id) + sum((b for _, b in merged), Decimal("0"))
     result["ar_balance"] = float(ar)
     if ar != total:
         result["errors"].append(
@@ -174,10 +201,9 @@ def carry_over(db: Session, csv_text: str, as_of: date, dry_run: bool = False) -
             f"Receivable holds {ar:,.2f} on {as_of:%Y-%m-%d}. Export the aging "
             "report as of the last day of the imported history."
         )
-    for i in items:
-        if i["kind"] == "invoice" and i["num"]:
-            if db.query(Invoice).filter(Invoice.invoice_number == i["num"]).first():
-                result["errors"].append(f"Invoice {i['num']} is here already; nothing was carried over.")
+    if db.query(Item).filter(Item.name == CARRY_ITEM).first() is not None and db.query(InvoiceLine).join(
+            Item, Item.id == InvoiceLine.item_id).filter(Item.name == CARRY_ITEM).first():
+        result["errors"].append("Open invoices were carried over from QuickBooks already; nothing was carried twice.")
     if result["errors"] or dry_run:
         result["invoices"] = sum(1 for i in items if i["kind"] == "invoice")
         result["payments"] = sum(1 for i in items if i["kind"] == "payment")
@@ -185,12 +211,23 @@ def carry_over(db: Session, csv_text: str, as_of: date, dry_run: bool = False) -
 
     clearing = _clearing(db)
     item = _item(db, clearing)
+    # nothing is offset before the books begin (the opening balances)
+    first = db.query(func.min(Transaction.date)).scalar() or as_of
+    used: set = set()
+    for acct, bal in merged:
+        if bal:
+            dr, cr = (bal, Decimal("0")) if bal > 0 else (Decimal("0"), -bal)
+            create_journal_entry(db, as_of, f"{acct.name} merged into Accounts Receivable (as QuickBooks' A/R aging has it)", [
+                {"account_id": ar_id, "debit": dr, "credit": cr, "description": f"From {acct.name}"},
+                {"account_id": acct.id, "debit": cr, "credit": dr, "description": "Into Accounts Receivable"},
+            ], source_type="qb_open_ar", reference=f"QB A/R merge {acct.name}"[:100])
 
     def _offset(day, amount, what):
         # the history holds this balance in Accounts Receivable already: move
         # it onto the document, on the document's own date, so no balance
         # sheet counts it twice
         dr, cr = (amount, Decimal("0")) if amount > 0 else (Decimal("0"), -amount)
+        day = max(day, first)
         create_journal_entry(db, day, f"{what} carried over from QuickBooks: open balance onto the document", [
             {"account_id": clearing.id, "debit": dr, "credit": cr, "description": "Carried over from QuickBooks"},
             {"account_id": ar_id, "debit": cr, "credit": dr, "description": "Carried over from QuickBooks"},
@@ -200,7 +237,7 @@ def carry_over(db: Session, csv_text: str, as_of: date, dry_run: bool = False) -
         if spec["kind"] == "invoice":
             amount = spec["open"]
             inv = Invoice(
-                invoice_number=spec["num"] or f"QB-{spec['date']:%Y%m%d}-{spec['row']}",
+                invoice_number=_number(db, spec, used),
                 customer_id=customer.id, job_id=job.id if job else None,
                 status=InvoiceStatus.SENT, date=spec["date"], due_date=spec["due_date"],
                 terms="", bill_address1=customer.bill_address1, bill_address2=customer.bill_address2,
@@ -211,7 +248,7 @@ def carry_over(db: Session, csv_text: str, as_of: date, dry_run: bool = False) -
             db.add(inv)
             db.flush()
             line = InvoiceLine(invoice_id=inv.id, item_id=item.id, job_id=job.id if job else None,
-                               description=f"QuickBooks invoice {spec['num']} of {spec['date']:%Y-%m-%d}: open balance",
+                               description=f"QuickBooks {spec['type'].lower()} {spec['num']} of {spec['date']:%Y-%m-%d}: open balance".replace("  ", " "),
                                quantity=Decimal("1"), rate=amount, amount=amount, is_taxable=False, line_order=0)
             db.add(line)
             db.flush()

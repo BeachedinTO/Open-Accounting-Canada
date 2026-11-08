@@ -62,3 +62,35 @@ def test_a_total_that_differs_from_ar_is_refused(db_session, seed_accounts):
     r = carry_over(db_session, AGING, date(2025, 3, 31))
     assert r["invoices"] == 2 and any("Accounts Receivable holds 1,000.00" in e for e in r["errors"])
     assert db_session.query(Invoice).count() == 0
+
+
+def test_other_receivable_accounts_merge_and_journal_rows_come_too(db_session, seed_accounts):
+    """bsq's aging spans Accounts Receivable and CRA Credit, and lists HST
+    journals QuickBooks put in A/R; all of it comes over, CRA Credit is
+    merged into A/R, and the total on every date is unchanged."""
+    from app.models.accounts import Account
+
+    cra = Account(name="CRA Credit", account_type="asset")
+    db_session.add(cra)
+    db_session.commit()
+    ar = get_ar_account_id(db_session)
+    _history(db_session, seed_accounts, Decimal("5650.00"), date(2025, 3, 20))
+    create_journal_entry(db_session, date(2025, 3, 31), "HST refund", [
+        {"account_id": cra.id, "debit": Decimal("100.00"), "credit": Decimal("0")},
+        {"account_id": seed_accounts["2000"].id, "debit": Decimal("0"), "credit": Decimal("100.00")},
+    ], source_type="qb_ledger_import")
+    db_session.commit()
+    aging = '''"","Type","Date","Num","P. O. #","Name","Terms","Due Date","Aging","Open Balance"
+"","Invoice","2025-03-20","1912","","535 Logan Avenue","","2025-04-19","","5,650.00"
+"","General Journal","2025-03-31","GST/HSTCA0062","","Receiver General","","","","100.00"
+"TOTAL","","","","","","","","","5,750.00"
+'''
+    r = carry_over(db_session, aging, date(2025, 3, 31), merge_accounts=("CRA Credit",))
+    db_session.commit()
+    assert r["errors"] == [] and r["invoices"] == 2, r
+    assert _bal(db_session, ar, date(2025, 3, 31)) == Decimal("5750.00")
+    assert _bal(db_session, cra.id, date(2025, 3, 31)) == Decimal("0.00")
+    assert db_session.query(Invoice).filter(Invoice.invoice_number == "QB General Journal GST/HSTCA0062").one().balance_due == Decimal("100.00")
+    # a second run carries nothing twice
+    again = carry_over(db_session, aging, date(2025, 3, 31), merge_accounts=("CRA Credit",))
+    assert any("already" in e for e in again["errors"])
