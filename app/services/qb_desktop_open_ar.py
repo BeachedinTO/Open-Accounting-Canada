@@ -254,7 +254,7 @@ def carry_over(db: Session, csv_text: str, as_of: date, dry_run: bool = False,
             db.flush()
             txn = _post_invoice_journal(db, inv, [line], customer.name)
             inv.transaction_id = txn.id
-            _offset(spec["date"], amount, f"Invoice {inv.invoice_number}")
+            _offset(spec["date"], amount, f"QuickBooks {spec['type'].lower()} {inv.invoice_number}")
             result["invoices"] += 1
         else:
             amount = -spec["open"]

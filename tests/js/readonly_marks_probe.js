@@ -113,6 +113,8 @@ const ctx = {
   PayrollPage: { render: async () => { rendered.push('payroll'); return '<payroll>'; } },
   AuditPage: { render: async () => { rendered.push('audit'); return '<audit>'; } },
 };
+// bsq: #/payroll draws the Canadian page; it renders through the same stub
+ctx.PayrollCAPage = { render: (...a) => ctx.PayrollPage.render(...a) };
 ctx.window = { addEventListener() {} };
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync('app/static/js/app.js', 'utf8') + '\nthis.App = App;', ctx);

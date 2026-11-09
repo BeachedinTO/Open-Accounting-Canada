@@ -178,6 +178,10 @@ const SettingsPage = {
                                 <option value="false" ${s.purchase_tax_recoverable !== 'true' ? 'selected' : ''}>Part of the cost (US sales tax)</option>
                                 <option value="true" ${s.purchase_tax_recoverable === 'true' ? 'selected' : ''}>Recoverable: HST input tax credits</option>
                             </select></div>
+                        <div class="form-group"><label>WSIB Rate (per $100 of payroll)</label>
+                            <input name="wsib_rate" type="number" min="0" max="100" step="0.01"
+                                title="Your WSIB premium rate, e.g. 4.31. Each pay run charges it on gross pay as an employer cost."
+                                value="${escapeHtml(s.wsib_rate || '0')}"></div>
                         <div class="form-group"><label>${`${T('Invoice')} Prefix`}</label>
                             <input name="invoice_prefix" value="${escapeHtml(s.invoice_prefix || '')}" placeholder="e.g. INV-"></div>
                         <div class="form-group"><label>${`Next ${T('Invoice')} #`}</label>

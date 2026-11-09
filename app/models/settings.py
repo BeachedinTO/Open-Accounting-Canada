@@ -55,6 +55,8 @@ DEFAULT_SETTINGS = {
     # project's income and costs meet on the job reports. Company files get
     # "true" from the bsq migration; off here keeps the general behaviour.
     "invoice_customer_job": "false",
+    # bsq: WSIB premium per $100 of insurable earnings (bsq's rate: 4.31)
+    "wsib_rate": "0",
     "invoice_prefix": "",
     "invoice_next_number": "1001",
     "estimate_prefix": "E-",

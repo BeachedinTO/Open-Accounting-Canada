@@ -78,9 +78,10 @@ const App = {
         '/tax':           { page: 'tax',             label: 'HST Return',         render: () => TaxPage.render() },
         // Phase 6: Ambitious
         '/companies':     { page: 'companies',       label: 'Companies',          render: () => CompaniesPage.render() },
-        '/employees':     { page: 'employees',       label: 'Employees',          render: () => EmployeesPage.render() },
-        '/payroll':       { page: 'payroll',         label: 'Payroll',            render: () => PayrollPage.render() },
-        '/payroll/:id':   { page: 'payroll',         label: 'Pay Run',            render: (id) => App.withDocument(() => PayrollPage.render(), () => PayrollPage.view(id)) },
+        // bsq: Canadian payroll (payroll_ca.js); the US pages stay in the code
+        '/employees':     { page: 'employees',       label: 'Employees',          render: () => PayrollCAPage.renderEmployees() },
+        '/payroll':       { page: 'payroll',         label: 'Payroll',            render: () => PayrollCAPage.render() },
+        '/payroll/:id':   { page: 'payroll',         label: 'Pay Run',            render: (id) => App.withDocument(() => PayrollCAPage.render(), () => PayrollCAPage.view(id)) },
         // Tier 1/2/3: Payroll & HR
         '/hr/onboarding':   { page: 'hr-onboarding',   label: 'Onboarding',       render: () => OnboardingPage.render() },
         '/hr/time-entries': { page: 'hr-time-entries', label: 'Time Entries',      render: () => TimeEntriesPage.render() },

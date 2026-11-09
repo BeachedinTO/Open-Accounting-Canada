@@ -1065,6 +1065,8 @@ app.include_router(system_routes.router)
 # Phase 6: Ambitious
 app.include_router(companies.router)
 app.include_router(employees.router)
+from app.routes import payroll_ca as _payroll_ca  # bsq: Canadian payroll
+app.include_router(_payroll_ca.router)
 app.include_router(payroll.router)
 # Phase 7: Online Payments
 app.include_router(provider_payments.router)

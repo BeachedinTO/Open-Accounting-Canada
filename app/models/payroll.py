@@ -144,6 +144,21 @@ class Employee(Base):
     )
 
     hire_date = Column(Date, nullable=True)
+    # bsq: Canadian payroll. The SIN and bank account are stored encrypted
+    # (crypto.encrypt_value); TD1 amounts left empty mean the basic amount.
+    sin_enc = Column(Text, nullable=True)
+    birth_date = Column(Date, nullable=True)
+    td1_federal = Column(Numeric(15, 2), nullable=True)
+    td1_ontario = Column(Numeric(15, 2), nullable=True)
+    default_hours = Column(Numeric(10, 2), nullable=True)
+    vacation_pct = Column(Numeric(6, 3), nullable=False, default=0, server_default="0")
+    pay_method = Column(String(20), nullable=False, default="cheque", server_default="cheque")
+    bank_institution = Column(String(5), nullable=True)
+    bank_transit = Column(String(10), nullable=True)
+    bank_account_enc = Column(Text, nullable=True)
+    cpp_exempt = Column(Boolean, nullable=False, default=False, server_default="0")
+    ei_exempt = Column(Boolean, nullable=False, default=False, server_default="0")
+    end_date = Column(Date, nullable=True)
     is_active = Column(Boolean, default=True)
     notes = Column(Text, nullable=True)
 
@@ -240,6 +255,8 @@ class PayRun(Base):
     total_employer_taxes = Column(Numeric(15, 2), default=0)
     # Employer-paid benefits (company cost, not withheld from anyone)
     total_employer_benefits = Column(Numeric(15, 2), default=0)
+    # bsq: "CA" for a Canadian pay run (app/services/payroll_ca_runs.py)
+    region = Column(String(2), nullable=True)
     transaction_id = Column(Integer, ForeignKey("transactions.id"), nullable=True)
     # The Job Cost Entry that distributed this run's actual labor burden
     # to jobs (labor cost type burden_method = "payroll")
@@ -306,6 +323,17 @@ class PayStub(Base):
     # JSON blob with the fully itemized line-by-line breakdown, used to render
     # pay stubs and tax forms without re-running the calculator.
     detail_json = Column(Text, nullable=True)
+    # bsq: Canadian payroll (CRA T4127). Income tax is federal_tax (federal)
+    # plus state_tax (Ontario); the stub shows them as one line.
+    cpp = Column(Numeric(15, 2), nullable=False, default=0, server_default="0")
+    cpp2 = Column(Numeric(15, 2), nullable=False, default=0, server_default="0")
+    ei = Column(Numeric(15, 2), nullable=False, default=0, server_default="0")
+    employer_cpp = Column(Numeric(15, 2), nullable=False, default=0, server_default="0")
+    employer_cpp2 = Column(Numeric(15, 2), nullable=False, default=0, server_default="0")
+    employer_ei = Column(Numeric(15, 2), nullable=False, default=0, server_default="0")
+    vacation_pay = Column(Numeric(15, 2), nullable=False, default=0, server_default="0")
+    wsib = Column(Numeric(15, 2), nullable=False, default=0, server_default="0")
+    rate = Column(Numeric(15, 2), nullable=True)
 
     pay_run = relationship("PayRun", back_populates="stubs")
     employee = relationship("Employee", back_populates="pay_stubs")
