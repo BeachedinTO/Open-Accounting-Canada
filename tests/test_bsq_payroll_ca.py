@@ -27,8 +27,9 @@ def year_2025(monkeypatch):
 
 # CRA T4032ON, January 1, 2025, biweekly federal tax: range midpoint ->
 # (claim code 0, claim code 1). CRA rounds to the nearest 5 cents.
-CRA_2025 = {1501: ("200.80", "107.75"), 1997: ("269.60", "176.50"), 2489: ("352.00", "258.95"),
-            2993: ("452.75", "359.70"), 4013: ("661.85", "568.80")}
+# (Above the CPP ceiling the printed tables cap the enhanced-CPP deduction
+# and T4127 does not, so only pays below it are compared.)
+CRA_2025 = {1501: ("200.80", "107.75"), 1997: ("269.60", "176.50"), 2489: ("352.00", "258.95")}
 
 
 @pytest.mark.parametrize("gross", sorted(CRA_2025))
@@ -68,3 +69,52 @@ def test_ontario_tax_parts():
     p = m.calculate(D("3000"), date(2026, 11, 6), 26, m.Employee(), m.YTD())
     assert p.ontario_tax > 0 and p.detail["V2"] == D("750.00")  # Health Premium over $72k: $600 + 25% of the excess, capped at $750
     assert p.net == p.gross - p.cpp - p.cpp2 - p.ei - p.federal_tax - p.ontario_tax
+
+
+@pytest.fixture
+def july_2025(monkeypatch):
+    """CRA's July 2025 figures (T4127 121st edition), for bsq's own stubs."""
+    t = dict(m.YEARS[(2026, 7)])
+    t.update({
+        "source": "T4127 121st edition, July 2025 (test only)",
+        "fed": [(D(0), D("0.14"), D(0)), (D(57375), D("0.205"), D(3729)), (D(114750), D("0.26"), D(10041)),
+                (D(177882), D("0.29"), D(15377)), (D(253414), D("0.33"), D(25514))],
+        "fed_low": D("0.14"), "bpaf": (D(16129), D(14538), D(177882), D(253414)), "cea": D(1471),
+        "on": [(D(0), D("0.0505"), D(0)), (D(52886), D("0.0915"), D(2168)), (D(105775), D("0.1116"), D(4294)),
+               (D(150000), D("0.1216"), D(5794)), (D(220000), D("0.1316"), D(7994))],
+        "on_basic": D(12747), "on_surtax": (D(5710), D("0.20"), D(7307), D("0.36")), "on_s2": D(294),
+        "ympe": D(71300), "yampe": D(81200), "cpp_max": D("4034.10"), "cpp_base_max": D("3356.10"),
+        "cpp2_max": D("396.00"), "ei_rate": D("0.0164"), "ei_max": D("1077.48"), "ei_max_insurable": D(65700),
+    })
+    monkeypatch.setitem(m.YEARS, (2025, 7), t)
+
+
+PAY_DAY = date(2025, 11, 7)
+
+
+def test_bsq_stub_hourly_with_vacation_pay(july_2025):
+    """Sakiko, 76 h x $24 + 4% vacation pay = 1,896.96: QuickBooks withheld
+    CPP 104.86, EI 31.11, income tax 239.02."""
+    p = m.calculate(D("1896.96"), PAY_DAY, 26, m.Employee(),
+                    m.YTD(cpp=D("2164.92"), ei=D("643.64"), pensionable=D("39212.16")))
+    assert (p.cpp, p.cpp2, p.ei, p.income_tax) == (D("104.86"), 0, D("31.11"), D("239.02"))
+
+
+def test_bsq_stub_near_the_cpp_ceiling(july_2025):
+    """Orontes, 80 h x $36: CPP 163.35, EI 47.23, income tax 495.81."""
+    p = m.calculate(D("2880.00"), PAY_DAY, 26, m.Employee(),
+                    m.YTD(cpp=D("3289.06"), ei=D("956.62"), pensionable=D("58240")))
+    assert (p.cpp, p.ei, p.income_tax) == (D("163.35"), D("47.23"), D("495.81"))
+
+
+def test_bsq_stub_crossing_the_cpp_ceiling(july_2025):
+    """Jiffy, 80 h x $39 on the pay that crosses the YMPE: CPP 126.24 (the
+    rest of the maximum), EI 0 (maximum reached). CPP2 is CRA's 4% of the
+    part above the YMPE (18.40); QuickBooks took 4% of the whole pay
+    (124.80). With QuickBooks' CPP2 the tax is QuickBooks' 531.81."""
+    ytd = m.YTD(cpp=D("3907.86"), ei=D("1077.48"), pensionable=D("68640"))
+    p = m.calculate(D("3120.00"), PAY_DAY, 26, m.Employee(), ytd)
+    assert (p.cpp, p.cpp2, p.ei) == (D("126.24"), D("18.40"), 0)
+    qb = m.calculate(D("3120.00"), PAY_DAY, 26, m.Employee(),
+                     m.YTD(cpp=D("3907.86"), ei=D("1077.48"), pensionable=D("71300")))
+    assert (qb.cpp2, qb.income_tax) == (D("124.80"), D("531.81"))

@@ -166,19 +166,26 @@ def calculate(gross, pay_date: date, periods: int, emp: Employee, ytd: YTD,
     ei = _r(ei)
 
     # --- annual taxable income: A = P × (I − F5A) (no RRSP, union dues...) --
-    # F5: the enhanced (first additional) CPP is deductible; annualised, it
-    # can't exceed the year's maximum first-additional contribution. Capped
-    # this way the result matches CRA's published T4032 tables (checked
-    # against the January 2025 biweekly federal table, within its 5-cent
-    # rounding).
-    F5 = min(cpp * (t["cpp_first_add"] / rate), (t["cpp_max"] - t["cpp_base_max"]) / P) + cpp2
+    # F5: the enhanced CPP (first additional and CPP2) is deductible, as
+    # T4127 states it, this pay's amount annualised. (CRA's printed T4032
+    # tables cap it at the year's maximum and so differ by a few cents a pay
+    # at higher earnings; QuickBooks follows T4127, and so does this.)
+    F5 = cpp * (t["cpp_first_add"] / rate) + cpp2
     A = P * (I - F5)
     if A < 0:
         A = D(0)
 
-    # credits for CPP (base part only) and EI, annualised and capped
-    cpp_credit_base = min(P * cpp * (t["cpp_base"] / rate), t["cpp_base_max"])
-    ei_credit_base = min(P * ei, t["ei_max"])
+    # credits for CPP (base part only) and EI, annualised and capped; once a
+    # maximum is reached, the credit is the year's maximum for the rest of
+    # the year (T4127: "use the annual maximum contributions")
+    if ytd.cpp + cpp >= t["cpp_max"]:
+        cpp_credit_base = t["cpp_base_max"]
+    else:
+        cpp_credit_base = min(P * cpp * (t["cpp_base"] / rate), t["cpp_base_max"])
+    if not emp.ei_exempt and ytd.ei + ei >= t["ei_max"]:
+        ei_credit_base = t["ei_max"]
+    else:
+        ei_credit_base = min(P * ei, t["ei_max"])
 
     # --- federal ----------------------------------------------------------
     R, K = _bracket(t["fed"], A)
