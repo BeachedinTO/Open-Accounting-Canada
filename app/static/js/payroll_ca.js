@@ -51,13 +51,14 @@ const PayrollCAPage = {
         const rows = emps.map(e => `<tr data-emp="${e.id}">
             <td><input type="checkbox" class="pr-on" checked aria-label="Pay ${escapeHtml(e.first_name)} ${escapeHtml(e.last_name)}"></td>
             <td>${escapeHtml(e.first_name)} ${escapeHtml(e.last_name)}</td>
-            <td><input class="pr-hours" type="number" step="0.25" min="0" value="${e.default_hours ?? 80}" style="width:90px" aria-label="Hours"></td>
+            <td><input class="pr-hours" type="number" step="0.25" min="0" value="${e.default_hours ?? ''}" data-default="${e.default_hours ?? ''}" style="width:90px" aria-label="Hours">
+                <span class="pr-hours-from" style="font-size:11px;color:var(--gray-600);"></span></td>
             <td><input class="pr-rate" type="number" step="0.01" min="0" value="${e.pay_rate}" style="width:100px" aria-label="Rate"></td>
             <td>${e.vacation_pct ? e.vacation_pct + '%' : '—'}</td></tr>`).join('');
         openModal('New Pay Run', `<form id="pr-form" onsubmit="PayrollCAPage.saveRun(event)">
             <div class="form-grid">
-                <div class="form-group"><label>Period start *</label><input name="period_start" type="date" required value="${start}"></div>
-                <div class="form-group"><label>Period end *</label><input name="period_end" type="date" required value="${end}"></div>
+                <div class="form-group"><label>Period start *</label><input name="period_start" type="date" required value="${start}" onchange="PayrollCAPage.timesheetHours()"></div>
+                <div class="form-group"><label>Period end *</label><input name="period_end" type="date" required value="${end}" onchange="PayrollCAPage.timesheetHours()"></div>
                 <div class="form-group"><label>Pay date *</label><input name="pay_date" type="date" required value="${pay}"></div>
             </div>
             <div class="table-container"><table class="line-items-table">
@@ -65,6 +66,23 @@ const PayrollCAPage = {
                 <tbody>${rows}</tbody></table></div>
             <div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
                 <button type="submit" class="btn btn-primary">Calculate</button></div></form>`, { wide: true });
+        await PayrollCAPage.timesheetHours();
+    },
+    // bsq: hours come from the timesheets in the pay period, as QuickBooks'
+    // "Use time data to create pay cheques"; with none, the usual hours
+    async timesheetHours() {
+        const f = document.getElementById('pr-form');
+        if (!f || !f.period_start.value || !f.period_end.value) return;
+        let hours = {};
+        try {
+            hours = await API.get(`/payroll/ca/timesheet-hours?period_start=${f.period_start.value}&period_end=${f.period_end.value}`);
+        } catch (e) { return; }
+        $$('#pr-form tbody tr').forEach(r => {
+            const inp = r.querySelector('.pr-hours'), note = r.querySelector('.pr-hours-from');
+            const h = hours[r.dataset.emp];
+            if (h) { inp.value = h; note.textContent = 'from timesheets'; }
+            else { inp.value = inp.dataset.default; note.textContent = inp.dataset.default ? '' : 'no timesheet: enter hours'; }
+        });
     },
     async saveRun(e) {
         e.preventDefault();

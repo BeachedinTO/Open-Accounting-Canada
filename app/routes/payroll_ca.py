@@ -229,6 +229,18 @@ def list_runs(db: Session = Depends(get_db)):
     return [{k: v for k, v in _run_out(db, r).items() if k != "stubs"} | {"employees": len(r.stubs)} for r in rs]
 
 
+@router.get("/timesheet-hours")
+def timesheet_hours(
+    period_start: date = Query(...),
+    period_end: date = Query(...),
+    db: Session = Depends(get_db),
+):
+    """bsq: each employee's timesheet hours in the pay period not yet paid."""
+    if period_end < period_start:
+        raise HTTPException(status_code=400, detail="The pay period ends before it starts.")
+    return {str(k): v for k, v in runs.timesheet_hours(db, period_start, period_end).items()}
+
+
 @router.post("/runs", status_code=201)
 def create_run(data: RunIn, db: Session = Depends(get_db)):
     if data.period_end < data.period_start:

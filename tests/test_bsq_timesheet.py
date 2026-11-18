@@ -115,3 +115,30 @@ def test_billable_time_goes_on_the_invoice_once_and_locks_until_freed(client, db
     # voiding the invoice frees the time
     assert client.post(f"/api/invoices/{inv['id']}/void").status_code == 200
     assert [x["id"] for x in client.get(f"/api/billable-costs/time?customer_id={glen['id']}").json()] == [t["id"]]
+
+
+def test_a_pay_run_takes_the_timesheet_hours_and_marks_them_paid(client, db_session, seed_accounts):
+    from tests.test_bsq_payroll_ca_runs import _emp as _ca_emp
+
+    e = _ca_emp(client, "Hoi Lun", "Lee", "046 454 286", 41.12)
+    emp = db_session.get(Employee, e["id"])
+    c = _cust(client, "52 Brumwell Street")
+    week1 = [_row([8, 8, 8, 8, 8, 0, 0], customer_id=c["id"])]
+    assert _save(client, emp, week1, week="2026-09-14").status_code == 200
+    assert _save(client, emp, [_row([7.5, 8, 8, 8, 8, 0, 0], customer_id=c["id"])], week="2026-09-21").status_code == 200
+    period = "period_start=2026-09-14&period_end=2026-09-27"
+    assert client.get(f"/api/payroll/ca/timesheet-hours?{period}").json() == {str(e["id"]): 79.5}
+
+    r = client.post("/api/payroll/ca/runs", json={"period_start": "2026-09-14", "period_end": "2026-09-27",
+                                                  "pay_date": "2026-10-02", "lines": [{"employee_id": e["id"], "hours": 79.5}]})
+    assert r.status_code == 201, r.text
+    run = r.json()
+    r = client.post(f"/api/payroll/ca/runs/{run['id']}/process", json={"bank_account_id": seed_accounts["1000"].id})
+    assert r.status_code == 200, r.text
+    # paid: no longer offered, and the sheet can't change those hours
+    assert client.get(f"/api/payroll/ca/timesheet-hours?{period}").json() == {}
+    r = _save(client, emp, [_row([9, 8, 8, 8, 8, 0, 0], customer_id=c["id"])], week="2026-09-14")
+    assert r.status_code == 400 and "paid on a pay run" in r.text
+    # voiding the run frees them
+    assert client.post(f"/api/payroll/ca/runs/{run['id']}/void").status_code == 200
+    assert client.get(f"/api/payroll/ca/timesheet-hours?{period}").json() == {str(e["id"]): 79.5}

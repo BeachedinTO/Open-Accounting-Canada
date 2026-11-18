@@ -139,7 +139,9 @@ const TimesheetPage = {
         const lockTitle = locked.length ? ` title="Some of these hours were ${escapeHtml(locked[0])}, so this row can't be changed"` : '';
         const items = '<option value="">—</option>' + TimesheetPage._items.map(i =>
             `<option value="${i.id}" ${Number(i.id) === Number(row.service_item_id) ? 'selected' : ''}>${escapeHtml(i.name)}</option>`).join('');
-        const pay = [['regular', 'Regular pay'], ['overtime', 'Overtime'], ['doubletime', 'Double time']].map(([v, l]) =>
+        // the Canadian pay run pays straight time; an older entry of overtime still shows as it is
+        const pay = [['regular', 'Regular pay']].concat(row.pay_type === 'overtime' ? [['overtime', 'Overtime']] : [],
+            row.pay_type === 'doubletime' ? [['doubletime', 'Double time']] : []).map(([v, l]) =>
             `<option value="${v}" ${row.pay_type === v ? 'selected' : ''}>${l}</option>`).join('');
         const cells = row.hours.map((h, i) => {
             const why = row.locked && row.locked[i];

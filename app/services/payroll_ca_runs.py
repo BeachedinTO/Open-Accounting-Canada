@@ -142,6 +142,39 @@ def _totals(run: PayRun):
     run.total_employer_taxes = sum((D(x.employer_cpp) + D(x.employer_cpp2) + D(x.employer_ei) + D(x.wsib) for x in s), D(0))
 
 
+# bsq: hours from timesheets, as QuickBooks' "Use time data to create pay
+# cheques". A pay run offers each employee the timesheet hours in its pay
+# period; processing it marks those entries paid (they can't change after),
+# and voiding it frees them again.
+
+def _period_entries(db, employee_ids, period_start: date, period_end: date, pay_run_id=None):
+    from app.models.time_entries import TimeEntry
+
+    return (
+        db.query(TimeEntry)
+        .filter(
+            TimeEntry.employee_id.in_(list(employee_ids)),
+            TimeEntry.date >= period_start,
+            TimeEntry.date <= period_end,
+            TimeEntry.source.is_(None),   # QuickBooks history is never paid again
+            TimeEntry.pay_run_id.is_(pay_run_id) if pay_run_id is None else TimeEntry.pay_run_id == pay_run_id,
+        )
+        .all()
+    )
+
+
+def timesheet_hours(db, period_start: date, period_end: date) -> dict:
+    """{employee id: timesheet hours in the period not yet paid}."""
+    from app.models.time_entries import TimeEntry
+
+    ids = [r[0] for r in db.query(TimeEntry.employee_id).distinct().all()]
+    out: dict[int, D] = {}
+    for te in _period_entries(db, ids, period_start, period_end):
+        h = D(str(te.hours_regular or 0)) + D(str(te.hours_overtime or 0)) + D(str(te.hours_doubletime or 0))
+        out[te.employee_id] = out.get(te.employee_id, D(0)) + h
+    return {k: float(v) for k, v in out.items() if v}
+
+
 def create_run(db, period_start: date, period_end: date, pay_date: date, lines: list) -> PayRun:
     """`lines`: [{employee_id, hours, rate?}]"""
     try:
@@ -211,6 +244,8 @@ def process_run(db, run: PayRun, bank_account_id: int):
                                reference=f"Pay run {run.pay_date:%Y-%m-%d}")
     run.transaction_id = txn.id
     run.status = PayRunStatus.PROCESSED
+    for te in _period_entries(db, {x.employee_id for x in run.stubs}, run.period_start, run.period_end):
+        te.pay_run_id = run.id
     db.flush()
     return run
 
@@ -235,5 +270,7 @@ def void_run(db, run: PayRun):
         create_journal_entry(db, run.pay_date, f"VOID {txn.description}", reversing_lines(txn.lines),
                              source_type="payroll_void", source_id=run.id, reference=txn.reference or "")
     run.status = PayRunStatus.VOID
+    for te in _period_entries(db, {x.employee_id for x in run.stubs}, run.period_start, run.period_end, pay_run_id=run.id):
+        te.pay_run_id = None
     db.flush()
     return run
