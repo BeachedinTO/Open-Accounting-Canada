@@ -159,19 +159,46 @@ class InvoiceLine(Base):
     invoice = relationship("Invoice", back_populates="lines")
     item = relationship("Item")
 
-    @property
-    def billable_cost_id(self):
-        """bsq: the billable cost (journal line) this line bills, if any."""
+    def _billed_links(self):
+        """bsq: (billable cost id, billable time id) this line bills. Read
+        for every invoice line loaded in the session at once, so a list of
+        invoices costs two queries, not two a line."""
+        cached = self.__dict__.get("_bsq_billed")
+        if cached is not None:
+            return cached
         from sqlalchemy.orm import object_session
 
+        from app.models.time_entries import TimeEntry
         from app.models.transactions import TransactionLine
 
         db = object_session(self)
         if db is None or self.id is None:
-            return None
-        row = (
-            db.query(TransactionLine.id)
-            .filter(TransactionLine.billed_invoice_line_id == self.id)
-            .first()
+            return (None, None)
+        lines = [
+            o for o in db.identity_map.values()
+            if isinstance(o, InvoiceLine) and o.id is not None and "_bsq_billed" not in o.__dict__
+        ]
+        ids = [o.id for o in lines]
+        costs = dict(
+            db.query(TransactionLine.billed_invoice_line_id, TransactionLine.id)
+            .filter(TransactionLine.billed_invoice_line_id.in_(ids))
+            .all()
         )
-        return row[0] if row else None
+        times = dict(
+            db.query(TimeEntry.billed_invoice_line_id, TimeEntry.id)
+            .filter(TimeEntry.billed_invoice_line_id.in_(ids))
+            .all()
+        )
+        for o in lines:
+            o.__dict__["_bsq_billed"] = (costs.get(o.id), times.get(o.id))
+        return self.__dict__.get("_bsq_billed", (None, None))
+
+    @property
+    def billable_cost_id(self):
+        """bsq: the billable cost (journal line) this line bills, if any."""
+        return self._billed_links()[0]
+
+    @property
+    def billable_time_id(self):
+        """bsq: the billable timesheet entry this line bills, if any."""
+        return self._billed_links()[1]

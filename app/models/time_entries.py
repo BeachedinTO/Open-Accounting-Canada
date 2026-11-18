@@ -14,6 +14,7 @@ from sqlalchemy import (
     DateTime,
     Text,
     Enum,
+    Boolean,
     ForeignKey,
     func,
 )
@@ -51,6 +52,13 @@ class TimeEntry(Base):
     job_cost_id = Column(Integer, ForeignKey("job_costs.id"), nullable=True)
     notes = Column(Text, nullable=True)
 
+    # bsq: QuickBooks' timesheet. The service item the time is billed as,
+    # whether it is billable to its job's customer, and the invoice line that
+    # billed it (set when an invoice takes it; cleared when that line goes).
+    service_item_id = Column(Integer, ForeignKey("items.id"), nullable=True)
+    is_billable = Column(Boolean, nullable=False, default=False, server_default="0")
+    billed_invoice_line_id = Column(Integer, ForeignKey("invoice_lines.id"), nullable=True)
+
     # Time that came from QuickBooks Desktop's Time by Name by Job detail
     # report (#323): the importer's name (a pay run never sweeps imported
     # history; a second upload posts nothing twice, by source_ref), the
@@ -76,3 +84,4 @@ class TimeEntry(Base):
     employee = relationship("Employee")
     job = relationship("Job")
     cost_code = relationship("CostCode")
+    service_item = relationship("Item", foreign_keys=[service_item_id])

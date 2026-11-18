@@ -2951,3 +2951,8 @@ tbody tr.row--dim > td.amount { color: var(--text-muted); }
     background: #fff;
     font-size: 13px;
 }
+
+/* bsq: weekly timesheet (timesheet.js), compact like QuickBooks' */
+.timesheet-table { width: 100%; table-layout: fixed; }
+.timesheet-table th, .timesheet-table td { padding: 4px 5px; vertical-align: top; }
+.timesheet-table select, .timesheet-table input, .timesheet-table textarea { font-size: 12px; padding: 3px 4px; }

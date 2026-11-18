@@ -130,6 +130,13 @@ def release_invoice(db: Session, invoice_id: int) -> int:
         .filter(TransactionLine.billed_invoice_line_id.in_(line_ids))
         .update({TransactionLine.billed_invoice_line_id: None}, synchronize_session=False)
     )
+    from app.models.time_entries import TimeEntry
+
+    n += (
+        db.query(TimeEntry)
+        .filter(TimeEntry.billed_invoice_line_id.in_(line_ids))
+        .update({TimeEntry.billed_invoice_line_id: None}, synchronize_session=False)
+    )
     return n
 
 
@@ -232,3 +239,80 @@ def restore_billed(db: Session, transaction_id: int, snapshot) -> None:
         .all()
     )
     keep_billed_links(db, snapshot, new_lines)
+
+
+# ── billable time (QuickBooks' "Time" tab) ────────────────────────────────
+# A timesheet hour ticked Billable, on a job, waits until an invoice for that
+# job's customer takes it. It comes onto the invoice as its service item:
+# the hours as the quantity, the item's rate, and the timesheet's notes as
+# the description.
+
+
+def unbilled_time(db: Session, customer_id: int, job_id: int | None = None):
+    """The customer's billable time not yet on an invoice, oldest first."""
+    from app.models.items import Item
+    from app.models.time_entries import TimeEntry
+
+    jobs = db.query(Job).filter(Job.customer_id == customer_id).all()
+    job_ids = [j.id for j in jobs if job_id is None or j.id == job_id]
+    if not job_ids:
+        return []
+    job_names = {j.id: j.name for j in jobs}
+    customer = db.get(Customer, customer_id)
+    rows = (
+        db.query(TimeEntry)
+        .filter(
+            TimeEntry.is_billable.is_(True),
+            TimeEntry.billed_invoice_line_id.is_(None),
+            TimeEntry.job_id.in_(job_ids),
+        )
+        .order_by(TimeEntry.date, TimeEntry.id)
+        .all()
+    )
+    out = []
+    for te in rows:
+        hours = Decimal(str(te.hours_regular or 0)) + Decimal(str(te.hours_overtime or 0)) \
+            + Decimal(str(te.hours_doubletime or 0))
+        if hours <= 0:
+            continue
+        item = db.get(Item, te.service_item_id) if te.service_item_id else None
+        rate = Decimal(str(item.rate or 0)) if item else Decimal("0")
+        job = job_names.get(te.job_id, "")
+        out.append(
+            {
+                "id": te.id,
+                "date": te.date.isoformat(),
+                "employee": te.employee.full_name if te.employee else "",
+                "item_id": item.id if item else None,
+                "item_name": item.name if item else "",
+                "hours": float(hours),
+                "rate": float(rate),
+                "amount": float((hours * rate).quantize(Decimal("0.01"))),
+                "notes": te.notes or "",
+                "is_taxable": bool(item.is_taxable) if item is not None else True,
+                "job_id": te.job_id,
+                "job_name": job if customer is None or job.lower() != (customer.name or "").lower() else "",
+            }
+        )
+    return out
+
+
+def bill_time(db: Session, customer_id: int, pairs) -> None:
+    """Mark each time entry billed on its invoice line. `pairs` is
+    [(invoice_line, time_entry_id)]."""
+    from app.models.time_entries import TimeEntry
+
+    for inv_line, entry_id in pairs:
+        te = db.get(TimeEntry, entry_id)
+        job = db.get(Job, te.job_id) if te is not None and te.job_id else None
+        if te is None or not te.is_billable:
+            raise HTTPException(status_code=400, detail="That time isn't marked billable.")
+        if job is None or job.customer_id != customer_id:
+            raise HTTPException(
+                status_code=400, detail="That billable time is for another customer's job."
+            )
+        if te.billed_invoice_line_id is not None and te.billed_invoice_line_id != inv_line.id:
+            raise HTTPException(
+                status_code=400, detail="That billable time is already on another invoice."
+            )
+        te.billed_invoice_line_id = inv_line.id

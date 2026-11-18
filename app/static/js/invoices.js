@@ -725,45 +725,82 @@ const InvoicesPage = {
     },
 
     // bsq: QuickBooks' "Choose Billable Time and Costs". Choosing a customer
-    // shows the costs marked billable for its jobs that no invoice has
-    // taken yet; ticked ones come onto the invoice as lines, each tied to
-    // its cost so it is billed once only. On an edit the list starts folded.
+    // shows the timesheet hours and the costs marked billable for its jobs
+    // that no invoice has taken yet; ticked ones come onto the invoice as
+    // lines, each tied to its time or cost so it is billed once only. Time
+    // comes on as its service item: hours x the item's rate, with the
+    // timesheet notes as the description. On an edit the list starts folded.
     _billable: [],
+    _billableTime: [],
     async checkBillable(customerId, folded = false) {
         if (typeof document === 'undefined' || typeof API === 'undefined') return;
         const box = document.getElementById('inv-billable');
         if (!box) return;
         box.innerHTML = '';
         InvoicesPage._billable = [];
+        InvoicesPage._billableTime = [];
         if (!customerId || customerId === '__new__') return;
-        let costs = [];
-        try { costs = await API.get(`/billable-costs?customer_id=${encodeURIComponent(customerId)}`); } catch (e) { return; }
+        let costs = [], time = [];
+        const q = `customer_id=${encodeURIComponent(customerId)}`;
+        try {
+            [costs, time] = await Promise.all([
+                API.get(`/billable-costs?${q}`),
+                API.get(`/billable-costs/time?${q}`).catch(() => []),
+            ]);
+        } catch (e) { return; }
         if (String($('#inv-customer-select')?.value) !== String(customerId)) return;  // changed meanwhile
         const onForm = new Set($$('#inv-lines tr').map(r => r.dataset.billableCostId).filter(Boolean));
-        costs = costs.filter(c => !onForm.has(String(c.id)));
+        const timeOnForm = new Set($$('#inv-lines tr').map(r => r.dataset.billableTimeId).filter(Boolean));
+        costs = (costs || []).filter(c => !onForm.has(String(c.id)));
+        time = (time || []).filter(t => !timeOnForm.has(String(t.id)));
         InvoicesPage._billable = costs;
-        if (!costs.length) return;
-        const total = costs.reduce((a, c) => a + c.amount, 0);
-        const rows = costs.map(c => `<tr>
+        InvoicesPage._billableTime = time;
+        if (!costs.length && !time.length) return;
+        const costTotal = costs.reduce((a, c) => a + c.amount, 0);
+        const hours = time.reduce((a, t) => a + t.hours, 0);
+        const timeTotal = time.reduce((a, t) => a + t.amount, 0);
+        const jobNote = (x) => x.job_name ? ` <span style="color:var(--gray-600)">(${escapeHtml(x.job_name)})</span>` : '';
+        const timeRows = time.map(t => `<tr>
+                <td style="text-align:center;"><input type="checkbox" class="bt-pick" value="${t.id}" aria-label="Bill ${escapeHtml(t.employee)} ${escapeHtml(t.date)} ${t.hours} hours" onchange="InvoicesPage.billableTotals()"></td>
+                <td>${escapeHtml(t.date)}</td>
+                <td>${escapeHtml(t.employee)}</td>
+                <td>${escapeHtml(t.item_name || '—')}</td>
+                <td>${escapeHtml(t.notes)}${jobNote(t)}</td>
+                <td class="amount">${Number(t.hours).toFixed(2)}</td>
+                <td class="amount">${t.rate ? formatCurrency(t.rate) : '<span title="The service item has no rate: enter it on the invoice line">—</span>'}</td>
+                <td class="amount">${formatCurrency(t.amount)}</td>
+            </tr>`).join('');
+        const costRows = costs.map(c => `<tr>
                 <td style="text-align:center;"><input type="checkbox" class="bc-pick" value="${c.id}" aria-label="Bill ${escapeHtml(c.payee)} ${escapeHtml(c.memo)} ${formatCurrency(c.amount)}" onchange="InvoicesPage.billableTotals()"></td>
                 <td>${escapeHtml(c.date)}</td>
                 <td>${escapeHtml(c.payee)}</td>
-                <td>${escapeHtml(c.memo)}${c.job_name ? ` <span style="color:var(--gray-600)">(${escapeHtml(c.job_name)})</span>` : ''}</td>
+                <td>${escapeHtml(c.memo)}${jobNote(c)}</td>
                 <td>${escapeHtml(c.source)}${c.reference ? ' ' + escapeHtml(c.reference) : ''}</td>
                 <td class="amount">${formatCurrency(c.amount)}</td>
             </tr>`).join('');
+        const parts = [];
+        if (time.length) parts.push(`${hours.toFixed(2)} hours (${formatCurrency(timeTotal)})`);
+        if (costs.length) parts.push(`${costs.length} cost${costs.length === 1 ? '' : 's'} (${formatCurrency(costTotal)})`);
         box.innerHTML = `<details class="billable-costs" ${folded ? '' : 'open'} style="margin:14px 0 4px; padding:10px 12px; border:1px solid var(--gray-300); border-radius:6px; background:var(--primary-light);">
-            <summary style="cursor:pointer; font-weight:700;">Billable costs for this ${T('customer')}: ${costs.length} not yet invoiced (${formatCurrency(total)})</summary>
+            <summary style="cursor:pointer; font-weight:700;">Billable time and costs for this ${T('customer')}, not yet invoiced: ${parts.join(' and ')}</summary>
             <div style="display:flex; gap:12px; align-items:center; margin:8px 0;">
                 <button type="button" class="btn btn-sm btn-secondary" onclick="InvoicesPage.billableAll(true)">Select All</button>
                 <button type="button" class="btn btn-sm btn-secondary" onclick="InvoicesPage.billableAll(false)">Clear</button>
+            </div>
+            ${time.length ? `<h4 style="margin:8px 0 4px;">Time</h4>
+            <div class="table-container"><table>
+                <thead><tr><th scope="col" style="width:30px;">✓</th><th scope="col">Date</th><th scope="col">Employee</th><th scope="col">Service Item</th><th scope="col">Notes</th><th scope="col" class="amount">Hours</th><th scope="col" class="amount">Rate</th><th scope="col" class="amount">Amount</th></tr></thead>
+                <tbody>${timeRows}</tbody>
+            </table></div>` : ''}
+            ${costs.length ? `<h4 style="margin:12px 0 4px;">Expenses</h4>
+            <div style="display:flex; gap:12px; align-items:center; margin:4px 0 8px;">
                 <label style="font-weight:normal;">Markup % <input id="bc-markup" type="number" step="0.01" value="0" style="width:80px;" oninput="InvoicesPage.billableTotals()"></label>
                 <label style="font-weight:normal;"><input type="checkbox" id="bc-taxable" checked> Selected costs are taxable (HST)</label>
             </div>
             <div class="table-container"><table>
                 <thead><tr><th scope="col" style="width:30px;">✓</th><th scope="col">Date</th><th scope="col">Payee</th><th scope="col">Memo</th><th scope="col">From</th><th scope="col" class="amount">Amount</th></tr></thead>
-                <tbody>${rows}</tbody>
-            </table></div>
+                <tbody>${costRows}</tbody>
+            </table></div>` : ''}
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
                 <span id="bc-selected">Selected: $0.00</span>
                 <button type="button" class="btn btn-sm btn-primary" onclick="InvoicesPage.addBillable()">Add selected to ${T('invoice')}</button>
@@ -771,7 +808,7 @@ const InvoicesPage = {
         </details>`;
     },
     billableAll(on) {
-        $$('#inv-billable .bc-pick').forEach(cb => { cb.checked = on; });
+        $$('#inv-billable .bc-pick, #inv-billable .bt-pick').forEach(cb => { cb.checked = on; });
         InvoicesPage.billableTotals();
     },
     _markup() { return (parseFloat(document.getElementById('bc-markup')?.value) || 0) / 100; },
@@ -782,12 +819,17 @@ const InvoicesPage = {
             const c = InvoicesPage._billable.find(x => String(x.id) === cb.value);
             if (c) sum += Math.round(c.amount * (1 + m) * 100) / 100;
         });
+        $$('#inv-billable .bt-pick:checked').forEach(cb => {
+            const t = InvoicesPage._billableTime.find(x => String(x.id) === cb.value);
+            if (t) sum += t.amount;
+        });
         const el = document.getElementById('bc-selected');
-        if (el) el.textContent = `Selected (with markup): ${formatCurrency(sum)}`;
+        if (el) el.textContent = `Selected${InvoicesPage._billable.length ? ' (costs with markup)' : ''}: ${formatCurrency(sum)}`;
     },
     addBillable() {
         const picked = $$('#inv-billable .bc-pick:checked').map(cb => InvoicesPage._billable.find(x => String(x.id) === cb.value)).filter(Boolean);
-        if (!picked.length) { toast('Tick the costs to put on this invoice.', 'error'); return; }
+        const pickedTime = $$('#inv-billable .bt-pick:checked').map(cb => InvoicesPage._billableTime.find(x => String(x.id) === cb.value)).filter(Boolean);
+        if (!picked.length && !pickedTime.length) { toast('Tick the time or costs to put on this invoice.', 'error'); return; }
         const m = InvoicesPage._markup();
         const taxable = document.getElementById('bc-taxable')?.checked !== false;
         // an untouched first line makes way for the costs
@@ -796,6 +838,13 @@ const InvoicesPage = {
                 && !(parseFloat(r.querySelector('.line-rate')?.value) || 0)) r.remove();
         });
         const tbody = $('#inv-lines');
+        pickedTime.forEach(t => {
+            const idx = InvoicesPage.lineCount++;
+            tbody.insertAdjacentHTML('beforeend', InvoicesPage.lineRowHtml(idx, {
+                item_id: t.item_id, description: t.notes || t.item_name, quantity: t.hours, rate: t.rate,
+                is_taxable: t.is_taxable, job_id: t.job_id, billable_time_id: t.id,
+            }, InvoicesPage._items));
+        });
         picked.forEach(c => {
             const idx = InvoicesPage.lineCount++;
             const desc = [c.payee, c.memo].filter(Boolean).join(' - ');
@@ -807,11 +856,14 @@ const InvoicesPage = {
         InvoicesPage.recalc();
         const box = document.getElementById('inv-billable');
         InvoicesPage._billable = InvoicesPage._billable.filter(c => !picked.includes(c));
+        InvoicesPage._billableTime = InvoicesPage._billableTime.filter(t => !pickedTime.includes(t));
         if (box) {
-            if (InvoicesPage._billable.length) InvoicesPage.checkBillable($('#inv-customer-select').value, true);
+            if (InvoicesPage._billable.length || InvoicesPage._billableTime.length) InvoicesPage.checkBillable($('#inv-customer-select').value, true);
             else box.innerHTML = '';
         }
-        toast(`${picked.length} billable cost${picked.length === 1 ? '' : 's'} added`);
+        const n = picked.length + pickedTime.length;
+        const noRate = pickedTime.filter(t => !t.rate).length;
+        toast(`${n} billable item${n === 1 ? '' : 's'} added${noRate ? `: enter the rate on ${noRate} time line${noRate === 1 ? '' : 's'} (the service item has none)` : ''}`);
     },
 
     async saveNewCustomer() {
@@ -860,7 +912,7 @@ const InvoicesPage = {
         // class has a cell of its own (#243); the data attribute still holds
         // a stored class where no cell is drawn.
         const dim = (v) => (v == null ? '' : escapeHtml(String(v)));
-        return `<tr data-line="${idx}" data-job-id="${dim(line.job_id)}" data-class-id="${dim(line.class_id)}" data-cost-code-id="${dim(line.cost_code_id)}"${line.billable_cost_id ? ` data-billable-cost-id="${dim(line.billable_cost_id)}" title="A billable cost"` : ''}>
+        return `<tr data-line="${idx}" data-job-id="${dim(line.job_id)}" data-class-id="${dim(line.class_id)}" data-cost-code-id="${dim(line.cost_code_id)}"${line.billable_cost_id ? ` data-billable-cost-id="${dim(line.billable_cost_id)}" title="A billable cost"` : ''}${line.billable_time_id ? ` data-billable-time-id="${dim(line.billable_time_id)}" title="Billable time"` : ''}>
             <td><select class="line-item" onchange="InvoicesPage.itemSelected(${idx})">
                 <option value="">--</option>${itemOpts}</select></td>
             <td><input class="line-desc" value="${escapeHtml(line.description || '')}"></td>
@@ -882,7 +934,7 @@ const InvoicesPage = {
 
     removeLine(idx) {
         const row = $(`[data-line="${idx}"]`);
-        const freed = row && row.dataset.billableCostId;
+        const freed = row && (row.dataset.billableCostId || row.dataset.billableTimeId);
         if (row) row.remove();
         InvoicesPage.recalc();
         // a billable cost taken off the invoice can be chosen again
@@ -960,6 +1012,7 @@ const InvoicesPage = {
                 class_id: InvoicesPage.lineClassFromRow(row),
                 cost_code_id: row.dataset.costCodeId ? parseInt(row.dataset.costCodeId) : null,
                 ...(row.dataset.billableCostId ? { billable_cost_id: parseInt(row.dataset.billableCostId) } : {}),
+                ...(row.dataset.billableTimeId ? { billable_time_id: parseInt(row.dataset.billableTimeId) } : {}),
                 line_order: i,
             });
         });

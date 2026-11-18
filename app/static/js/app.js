@@ -85,6 +85,8 @@ const App = {
         // Tier 1/2/3: Payroll & HR
         '/hr/onboarding':   { page: 'hr-onboarding',   label: 'Onboarding',       render: () => OnboardingPage.render() },
         '/hr/time-entries': { page: 'hr-time-entries', label: 'Time Entries',      render: () => TimeEntriesPage.render() },
+        // bsq: QuickBooks' weekly timesheet (timesheet.js)
+        '/timesheet':       { page: 'timesheet',       label: 'Timesheet',         render: () => TimesheetPage.render() },
         '/hr/pto':          { page: 'hr-pto',           label: 'Time Off',         render: () => PTOPage.render() },
         '/hr/benefits':     { page: 'hr-benefits',     label: 'Benefits',          render: () => BenefitsPage.render() },
         '/hr/deductions':   { page: 'hr-deductions',   label: 'Garnishments',      render: () => DeductionsPage.render() },
