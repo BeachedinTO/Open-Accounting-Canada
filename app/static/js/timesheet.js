@@ -35,7 +35,7 @@ const TimesheetPage = {
     async render() {
         const [emps, items] = await Promise.all([
             API.get('/employees?active_only=true'),
-            API.get('/items'),
+            API.get('/items?active_only=true'),
             CustomerJob.load(),
         ]);
         TimesheetPage._emps = emps || [];
@@ -88,10 +88,10 @@ const TimesheetPage = {
         if (lbl) lbl.textContent = `${TimesheetPage._fmt(sheet.days[0])} to ${TimesheetPage._fmt(sheet.days[6], true)}`;
         const days = ['M', 'Tu', 'W', 'Th', 'F', 'Sa', 'Su'];
         const head = sheet.days.map((d, i) =>
-            `<th scope="col" class="amount">${days[i]}<br><span style="font-weight:normal;">${TimesheetPage._date(d).getUTCDate()}</span></th>`).join('');
+            `<th scope="col" class="amount">${days[i]} <br><span style="font-weight:normal;">${TimesheetPage._date(d).getUTCDate()}</span></th>`).join('');
         const rows = sheet.rows.map(r => TimesheetPage.rowHtml(r)).join('')
             + Array.from({ length: TimesheetPage.BLANK_ROWS }, () => TimesheetPage.rowHtml(null)).join('');
-        box.innerHTML = `
+        box.innerHTML = `<form id="ts-form" onsubmit="event.preventDefault(); TimesheetPage.save()">
             <div class="table-container"><table class="timesheet-table">
                 <thead><tr>
                     <th scope="col" style="width:15%;">${T('Customer')}:${T('Job')}</th>
@@ -116,11 +116,13 @@ const TimesheetPage = {
                     <button type="button" class="btn btn-secondary" onclick="TimesheetPage.addRow()">+ Add Row</button>
                 </div>
                 <div style="display:flex; gap:8px;">
-                    <button type="button" class="btn btn-secondary" onclick="TimesheetPage.load()">Revert</button>
-                    <button type="button" class="btn btn-primary" onclick="TimesheetPage.save()">Save</button>
+                    <button type="button" class="btn btn-secondary" data-readonly-ok onclick="TimesheetPage.load()">Revert</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
                     <button type="button" class="btn btn-primary" onclick="TimesheetPage.save(7)">Save &amp; Next Week</button>
                 </div>
-            </div>`;
+            </div></form>`;
+        // a read-only sign-in sees the sheet locked (it arrives after the page)
+        if (typeof App !== 'undefined' && App.isReadOnly && App.isReadOnly()) App.readOnlyPass(box);
         TimesheetPage.totals();
         document.querySelectorAll('#ts-rows .ts-notes').forEach(t => TimesheetPage.fit(t));
     },
@@ -147,16 +149,16 @@ const TimesheetPage = {
             const why = row.locked && row.locked[i];
             return `<td><input class="ts-h" data-day="${i}" type="text" inputmode="decimal" value="${TimesheetPage._hrs(h)}"
                 style="width:100%; min-width:40px; box-sizing:border-box; text-align:right;${why ? ' background:var(--gray-100);' : ''}" ${why ? `disabled title="${escapeHtml(why)}"` : ''}
-                aria-label="Hours ${TimesheetPage._sheet ? escapeHtml(TimesheetPage._sheet.days[i]) : ''}" oninput="TimesheetPage.totals(this)"></td>`;
+                oninput="TimesheetPage.totals(this)"></td>`;
         }).join('');
         return `<tr class="ts-row"${lockTitle}>
-            <td><select class="ts-cj" style="width:100%;" ${lockAll} aria-label="${T('Customer')}:${T('Job')}" onchange="TimesheetPage.touched(this)">${CustomerJob.options(row.job_id)}</select></td>
-            <td><select class="ts-item" style="width:100%;" ${lockAll} aria-label="Service item" onchange="TimesheetPage.touched(this)">${items}</select></td>
-            <td><select class="ts-pay" style="width:100%;" ${lockAll} aria-label="Payroll item">${pay}</select></td>
-            <td><textarea class="ts-notes" rows="1" ${lockAll} aria-label="Notes" style="width:100%; box-sizing:border-box; resize:vertical; overflow:hidden;" oninput="TimesheetPage.touched(this); TimesheetPage.fit(this)">${escapeHtml(row.notes || '')}</textarea></td>
+            <td><select class="ts-cj" style="width:100%;" ${lockAll} onchange="TimesheetPage.touched(this)">${CustomerJob.options(row.job_id)}</select></td>
+            <td><select class="ts-item" style="width:100%;" ${lockAll} onchange="TimesheetPage.touched(this)">${items}</select></td>
+            <td><select class="ts-pay" style="width:100%;" ${lockAll}>${pay}</select></td>
+            <td><textarea class="ts-notes" rows="1" ${lockAll} style="width:100%; box-sizing:border-box; resize:vertical; overflow:hidden;" oninput="TimesheetPage.touched(this); TimesheetPage.fit(this)">${escapeHtml(row.notes || '')}</textarea></td>
             ${cells}
             <td class="amount ts-row-total" style="background:var(--gray-100); font-weight:600;"></td>
-            <td style="text-align:center;"><input type="checkbox" class="ts-bill" ${row.billable ? 'checked' : ''} ${lockAll} aria-label="Billable"></td>
+            <td style="text-align:center;"><input type="checkbox" class="ts-bill" ${row.billable ? 'checked' : ''} ${lockAll}></td>
         </tr>`;
     },
 
