@@ -163,7 +163,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: OpenAccountingCanada-windows-x64
-          retention-days: 7
+          retention-days: 2
           path: |
             OpenAccountingCanada-Setup-x64.exe
             OpenAccountingCanada-windows-x64.zip
