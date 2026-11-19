@@ -7,7 +7,9 @@ name: Open Accounting Canada (Windows installer)
 # smoke test -> portable .zip + Inno Setup installer -> build artifact.
 # Unsigned: the original's code-signing steps used the SlowBooks author's
 # own Azure certificate, which this copy can't use, so Windows shows
-# "unknown publisher" when the installer runs. No GitHub Release is made.
+# "unknown publisher" when the installer runs. A GitHub Release is made only
+# when run by hand with "Publish a release" ticked: its notes come from
+# packaging/RELEASE_NOTES.md, with the license and checksums attached.
 #
 # Standard CPython (pywebview needs pythonnet/.NET); MSYS2 is only a DLL
 # donor for WeasyPrint's Pango/GObject/Fontconfig natives (PDFs).
@@ -16,6 +18,11 @@ on:
   push:
     branches: [bsq-canada]
   workflow_dispatch:
+    inputs:
+      release:
+        description: Publish a release (installer, zip, checksums, LICENSE)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -168,3 +175,32 @@ jobs:
             OpenAccountingCanada-Setup-x64.exe
             OpenAccountingCanada-windows-x64.zip
             SHA256SUMS.windows
+
+  release:
+    name: Publish the release
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenAccountingCanada-windows-x64
+          path: dist
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum -c SHA256SUMS.windows)
+          ver=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' app/__init__.py)
+          day=$(TZ=America/Toronto date +%Y-%m-%d)
+          tag="oac-${day}-r${GITHUB_RUN_NUMBER}"
+          cp LICENSE dist/LICENSE.txt
+          gh release create "$tag" --target "$GITHUB_SHA" \
+            --title "Open Accounting Canada ${day} (based on SlowBooks Pro 2026 v${ver})" \
+            --notes-file packaging/RELEASE_NOTES.md \
+            dist/OpenAccountingCanada-Setup-x64.exe dist/OpenAccountingCanada-windows-x64.zip \
+            dist/SHA256SUMS.windows dist/LICENSE.txt
