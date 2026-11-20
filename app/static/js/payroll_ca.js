@@ -153,7 +153,7 @@ const PayrollCAPage = {
         ActiveLists.remember('employees', emps);
         const rows = emps.map(e => `<tr>
             <td>${escapeHtml(e.last_name)}, ${escapeHtml(e.first_name)}</td><td>${escapeHtml(e.sin_display)}</td>
-            <td class="amount">${PayrollCAPage.money(e.pay_rate)}/h × ${e.default_hours ?? '—'}</td>
+            <td class="amount">${PayrollCAPage.money(e.pay_rate)}/h × ${e.hours_from_timesheets ? 'timesheet hours' : (e.default_hours ?? '—')}</td>
             <td>${e.vacation_pct ? e.vacation_pct + '% on each pay' : 'Paid time off'}</td>
             <td>${e.pay_method === 'direct_deposit' ? 'Direct deposit' : 'Cheque'}</td>
             <td>${e.is_active ? 'Active' : 'Inactive'}</td>
@@ -189,6 +189,8 @@ const PayrollCAPage = {
                 <div class="form-group"><label>Hire date</label><input name="hire_date" type="date" value="${v('hire_date')}"></div>
                 <div class="form-group"><label>Hourly rate *</label><input name="pay_rate" type="number" step="0.01" min="0" required value="${v('pay_rate')}"></div>
                 <div class="form-group"><label>Hours each pay</label><input name="default_hours" type="number" step="0.25" min="0" value="${v('default_hours')}"></div>
+                <div class="form-group"><label style="font-weight:normal;"><input name="hours_from_timesheets" type="checkbox" ${(id ? e.hours_from_timesheets : false) ? 'checked' : ''}> Use timesheet hours to create pay cheques</label>
+                    <small style="display:block;color:var(--gray-600);">Off: paid the hours each pay (timesheets for job tracking only)</small></div>
                 <div class="form-group"><label>Vacation pay on each pay (%)</label><input name="vacation_pct" type="number" step="0.01" min="0" value="${v('vacation_pct')}" title="4 for 4%; 0 for paid time off"></div>
                 <div class="form-group"><label>TD1 federal claim</label><input name="td1_federal" type="number" step="0.01" min="0" value="${v('td1_federal')}" placeholder="basic amount"></div>
                 <div class="form-group"><label>TD1ON Ontario claim</label><input name="td1_ontario" type="number" step="0.01" min="0" value="${v('td1_ontario')}" placeholder="basic amount"></div>
@@ -217,6 +219,7 @@ const PayrollCAPage = {
             address1: f.address1.value, address2: f.address2.value || null, city: f.city.value, province: f.province.value || 'ON',
             postal_code: f.postal_code.value, email: f.email.value || null, hire_date: f.hire_date.value || null,
             pay_rate: num('pay_rate') || 0, default_hours: num('default_hours'), vacation_pct: num('vacation_pct') || 0,
+            hours_from_timesheets: f.hours_from_timesheets.checked,
             td1_federal: num('td1_federal'), td1_ontario: num('td1_ontario'), extra_tax: num('extra_tax') || 0,
             pay_method: f.pay_method.value, cpp_exempt: f.cpp_exempt.checked, ei_exempt: f.ei_exempt.checked, is_active: f.is_active.checked,
             bank_institution: f.bank_institution.value || null, bank_transit: f.bank_transit.value || null,

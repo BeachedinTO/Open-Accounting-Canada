@@ -163,11 +163,18 @@ def _period_entries(db, employee_ids, period_start: date, period_end: date, pay_
     )
 
 
+def _paid_from_time(db, run) -> set:
+    """The run's employees paid from their timesheets: only their hours are
+    marked paid (others' timesheets are job tracking, never locked)."""
+    ids = {x.employee_id for x in run.stubs}
+    return {e.id for e in db.query(Employee).filter(Employee.id.in_(ids)).all() if e.hours_from_timesheets}
+
+
 def timesheet_hours(db, period_start: date, period_end: date) -> dict:
     """{employee id: timesheet hours in the period not yet paid}."""
     from app.models.time_entries import TimeEntry
 
-    ids = [r[0] for r in db.query(TimeEntry.employee_id).distinct().all()]
+    ids = [r[0] for r in db.query(Employee.id).filter(Employee.hours_from_timesheets.is_(True)).all()]
     out: dict[int, D] = {}
     for te in _period_entries(db, ids, period_start, period_end):
         h = D(str(te.hours_regular or 0)) + D(str(te.hours_overtime or 0)) + D(str(te.hours_doubletime or 0))
@@ -244,7 +251,7 @@ def process_run(db, run: PayRun, bank_account_id: int):
                                reference=f"Pay run {run.pay_date:%Y-%m-%d}")
     run.transaction_id = txn.id
     run.status = PayRunStatus.PROCESSED
-    for te in _period_entries(db, {x.employee_id for x in run.stubs}, run.period_start, run.period_end):
+    for te in _period_entries(db, _paid_from_time(db, run), run.period_start, run.period_end):
         te.pay_run_id = run.id
     db.flush()
     return run
@@ -270,7 +277,8 @@ def void_run(db, run: PayRun):
         create_journal_entry(db, run.pay_date, f"VOID {txn.description}", reversing_lines(txn.lines),
                              source_type="payroll_void", source_id=run.id, reference=txn.reference or "")
     run.status = PayRunStatus.VOID
-    for te in _period_entries(db, {x.employee_id for x in run.stubs}, run.period_start, run.period_end, pay_run_id=run.id):
+    for te in _period_entries(db, {x.employee_id for x in run.stubs}, run.period_start, run.period_end,
+                              pay_run_id=run.id):
         te.pay_run_id = None
     db.flush()
     return run

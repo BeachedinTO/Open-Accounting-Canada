@@ -120,8 +120,10 @@ def test_billable_time_goes_on_the_invoice_once_and_locks_until_freed(client, db
 def test_a_pay_run_takes_the_timesheet_hours_and_marks_them_paid(client, db_session, seed_accounts):
     from tests.test_bsq_payroll_ca_runs import _emp as _ca_emp
 
-    e = _ca_emp(client, "Hoi Lun", "Lee", "046 454 286", 41.12)
+    e = _ca_emp(client, "Sakiko", "Homma", "046 454 286", 24)
     emp = db_session.get(Employee, e["id"])
+    emp.hours_from_timesheets = True   # "Use timesheet hours to create pay cheques"
+    db_session.commit()
     c = _cust(client, "52 Brumwell Street")
     week1 = [_row([8, 8, 8, 8, 8, 0, 0], customer_id=c["id"])]
     assert _save(client, emp, week1, week="2026-09-14").status_code == 200
@@ -142,3 +144,24 @@ def test_a_pay_run_takes_the_timesheet_hours_and_marks_them_paid(client, db_sess
     # voiding the run frees them
     assert client.post(f"/api/payroll/ca/runs/{run['id']}/void").status_code == 200
     assert client.get(f"/api/payroll/ca/timesheet-hours?{period}").json() == {str(e["id"]): 79.5}
+
+
+def test_a_fixed_hours_employee_keeps_their_hours_and_their_timesheet_stays_open(client, db_session, seed_accounts):
+    """Salaried staff (Jiffy, Orontes): paid 80 hours every pay; their
+    timesheets are for job tracking and never locked by a pay run."""
+    from tests.test_bsq_payroll_ca_runs import _emp as _ca_emp
+
+    e = _ca_emp(client, "Orontes M", "Mejia", "046 454 286", 39)
+    assert e["hours_from_timesheets"] is False
+    emp = db_session.get(Employee, e["id"])
+    c = _cust(client, "2661 Kingston Rd.")
+    assert _save(client, emp, [_row([9, 11, 12, 9, 6, 5, 3], customer_id=c["id"])], week="2026-11-02").status_code == 200
+    assert client.get("/api/payroll/ca/timesheet-hours?period_start=2026-10-31&period_end=2026-11-13").json() == {}
+    r = client.post("/api/payroll/ca/runs", json={"period_start": "2026-10-31", "period_end": "2026-11-13",
+                                                  "pay_date": "2026-11-20", "lines": [{"employee_id": e["id"]}]})
+    assert r.status_code == 201, r.text
+    run = r.json()
+    assert client.post(f"/api/payroll/ca/runs/{run['id']}/process",
+                       json={"bank_account_id": seed_accounts["1000"].id}).status_code == 200
+    r = _save(client, emp, [_row([8, 11, 12, 9, 6, 5, 3], customer_id=c["id"])], week="2026-11-02")
+    assert r.status_code == 200, r.text

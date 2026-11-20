@@ -6,9 +6,12 @@
 > Canadian edition: **Open Accounting Canada**, forked and maintained for bsq design inc. (Toronto) in [BeachedinTO/bsq-slowbooks](https://github.com/BeachedinTO/bsq-slowbooks), branch `bsq-canada`. For internal use; not sold or offered as a service.
 
 ### New in this release
+- **Fixed hours or timesheet hours, per employee** (Payroll → Employees → Edit → "Use timesheet hours to create pay cheques", as in QuickBooks). Off: paid the usual hours every pay, for salaried staff paid 80 hours whose timesheets are for job tracking; their timesheets are never locked by a pay run. On: the pay run takes the timesheet hours in the pay period. Updating sets it on only for employees with no usual hours.
+- Payroll checked against bsq's QuickBooks pay of Nov 20, 2026 with year-to-date amounts: Jiffy to the cent; Orontes to the cent except income tax, one cent under QuickBooks' (CRA's T4127 formula gives $557.8528).
+
+### Earlier in November
 - **Weekly Timesheet**, laid out like QuickBooks Desktop's (Payroll & HR → Timesheet): Customer:Job, Service Item, Payroll Item, Notes, Monday–Sunday, Total, Billable?; Previous/Next week, Copy Last Sheet, Save & Next Week.
 - **Billable time on invoices**: billable timesheet hours for a customer's jobs are offered under "Time" when you start that customer's invoice, next to billable expenses. They come on as the service item, with the hours as the quantity and the notes as the description. The rate is entered on the invoice. Each entry is billed once; voiding the invoice frees it.
-- **Pay runs take hours from timesheets** (as QuickBooks' "Use time data to create pay cheques"). Paid hours are locked on the timesheet until the run is voided.
 
 ### Canadian edition so far
 - HST on sales and purchases (13% Ontario, input tax credits), quarterly HST return worksheet.

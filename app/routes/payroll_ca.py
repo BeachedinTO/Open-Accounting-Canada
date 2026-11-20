@@ -42,6 +42,9 @@ class EmployeeIn(BaseModel):
     pay_rate: float = 0                # hourly rate
     default_hours: Optional[float] = 80
     vacation_pct: float = 0            # 4 = 4% vacation pay on every cheque
+    # paid the timesheet hours (on) or the usual hours every pay (off);
+    # left out: unchanged on an edit, and on when there are no usual hours
+    hours_from_timesheets: Optional[bool] = None
     td1_federal: Optional[float] = None
     td1_ontario: Optional[float] = None
     extra_tax: float = 0
@@ -82,6 +85,7 @@ def _out(e: Employee) -> dict:
         "end_date": e.end_date.isoformat() if e.end_date else None,
         "pay_rate": float(e.pay_rate or 0), "default_hours": float(e.default_hours) if e.default_hours is not None else None,
         "vacation_pct": float(e.vacation_pct or 0),
+        "hours_from_timesheets": bool(e.hours_from_timesheets),
         "td1_federal": float(e.td1_federal) if e.td1_federal is not None else None,
         "td1_ontario": float(e.td1_ontario) if e.td1_ontario is not None else None,
         "extra_tax": float(e.extra_withholding or 0),
@@ -131,6 +135,10 @@ def _apply(e: Employee, data: EmployeeIn, creating: bool):
     e.pay_rate = D(str(data.pay_rate))
     e.default_hours = D(str(data.default_hours)) if data.default_hours is not None else None
     e.vacation_pct = D(str(data.vacation_pct))
+    if data.hours_from_timesheets is not None:
+        e.hours_from_timesheets = data.hours_from_timesheets
+    elif creating:
+        e.hours_from_timesheets = data.default_hours is None
     e.td1_federal = D(str(data.td1_federal)) if data.td1_federal is not None else None
     e.td1_ontario = D(str(data.td1_ontario)) if data.td1_ontario is not None else None
     e.extra_withholding = D(str(data.extra_tax or 0))

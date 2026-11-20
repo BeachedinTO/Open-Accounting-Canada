@@ -151,6 +151,10 @@ class Employee(Base):
     td1_federal = Column(Numeric(15, 2), nullable=True)
     td1_ontario = Column(Numeric(15, 2), nullable=True)
     default_hours = Column(Numeric(10, 2), nullable=True)
+    # bsq: QuickBooks' "Use time data to create pay cheques". Off: paid the
+    # usual hours every pay (timesheets for job tracking only). On: paid the
+    # timesheet hours in the pay period.
+    hours_from_timesheets = Column(Boolean, nullable=False, default=False, server_default="0")
     vacation_pct = Column(Numeric(6, 3), nullable=False, default=0, server_default="0")
     pay_method = Column(String(20), nullable=False, default="cheque", server_default="cheque")
     bank_institution = Column(String(5), nullable=True)
