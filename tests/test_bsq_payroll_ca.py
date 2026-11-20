@@ -118,3 +118,29 @@ def test_bsq_stub_crossing_the_cpp_ceiling(july_2025):
     qb = m.calculate(D("3120.00"), PAY_DAY, 26, m.Employee(),
                      m.YTD(cpp=D("3907.86"), ei=D("1077.48"), pensionable=D("71300")))
     assert (qb.cpp2, qb.income_tax) == (D("124.80"), D("531.81"))
+
+
+def test_matches_quickbooks_stubs_of_nov_20_2026_with_their_year_to_date():
+    """bsq's QuickBooks pay of Nov 20, 2026 (Oct 31 - Nov 13), with each
+    employee's year-to-date from QuickBooks' Employee Earnings Summary.
+    Jiffy had reached the 2026 CPP and EI maximums; Orontes reaches EI's."""
+    from datetime import date as _d
+    from decimal import Decimal as _D
+
+    from app.services import payroll_ca as e
+
+    pd = _d(2026, 11, 20)
+    jiffy = e.calculate(_D("3289.60"), pd, 26, e.Employee(birth_date=_d(1989, 3, 20)),
+                        e.YTD(cpp=_D("4230.45"), cpp2=_D("35.65"), ei=_D("1123.07"),
+                              pensionable=_D("75491.20"), insurable=_D("75491.20")))
+    assert (jiffy.cpp, jiffy.cpp2, jiffy.ei, jiffy.income_tax, jiffy.net) == \
+        (_D("0.00"), _D("131.58"), _D("0.00"), _D("577.98"), _D("2580.04"))
+    orontes = e.calculate(_D("3120.00"), pd, 26, e.Employee(birth_date=_d(1991, 12, 17)),
+                          e.YTD(cpp=_D("3814.17"), ei=_D("1096.46"),
+                                pensionable=_D("67200"), insurable=_D("67200")))
+    assert (orontes.cpp, orontes.cpp2, orontes.ei) == (_D("177.63"), _D("0.00"), _D("26.61"))
+    # QuickBooks took $557.86 of income tax. T4127 works out to $557.8528
+    # (federal $365.5041 + Ontario $192.3487), which rounds to $557.85: one
+    # cent less, and net one cent more. Rounding the parts or the total
+    # differently doesn't reach QuickBooks' figure; left as T4127 gives it.
+    assert (orontes.income_tax, orontes.net) == (_D("557.85"), _D("2357.91"))
