@@ -338,6 +338,12 @@ class PayStub(Base):
     vacation_pay = Column(Numeric(15, 2), nullable=False, default=0, server_default="0")
     wsib = Column(Numeric(15, 2), nullable=False, default=0, server_default="0")
     rate = Column(Numeric(15, 2), nullable=True)
+    # bsq: the paycheque. Its own bank entry (payee the employee), how it
+    # was paid (cheque | etransfer | direct_deposit) and the cheque number
+    # or e-transfer reference.
+    transaction_id = Column(Integer, ForeignKey("transactions.id"), nullable=True)
+    payment_method = Column(String(20), nullable=True)
+    payment_ref = Column(String(40), nullable=True)
 
     pay_run = relationship("PayRun", back_populates="stubs")
     employee = relationship("Employee", back_populates="pay_stubs")

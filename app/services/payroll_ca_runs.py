@@ -215,7 +215,14 @@ def create_run(db, period_start: date, period_end: date, pay_date: date, lines: 
     return run
 
 
-def process_run(db, run: PayRun, bank_account_id: int):
+PAY_METHODS = {"cheque": "Cheque", "etransfer": "E-transfer", "direct_deposit": "Direct deposit"}
+
+
+def process_run(db, run: PayRun, bank_account_id: int, refs: dict | None = None):
+    """Post the run: one paycheque per employee, as QuickBooks does. Each is
+    its own bank entry (payee the employee; reference the cheque number, or
+    the e-transfer's), carrying that employee's wages, deductions, employer
+    CPP/EI and WSIB. `refs`: {employee id: cheque number or reference}."""
     from app.services.accounting import create_journal_entry
     from app.services.closing_date import check_closing_date
 
@@ -229,27 +236,40 @@ def process_run(db, run: PayRun, bank_account_id: int):
         raise HTTPException(status_code=400, detail="Choose the bank account the pay comes out of.")
     recalc(db, run)  # the year-to-date as it stands now
     a = accounts(db)
-    gross = sum((D(s.gross_pay) for s in run.stubs), D(0))
-    employer = sum((D(s.employer_cpp) + D(s.employer_cpp2) + D(s.employer_ei) for s in run.stubs), D(0))
-    wsib = sum((D(s.wsib) for s in run.stubs), D(0))
-    withheld = sum((D(s.cpp) + D(s.cpp2) + D(s.ei) + D(s.federal_tax) + D(s.state_tax) for s in run.stubs), D(0))
-    net = sum((D(s.net_pay) for s in run.stubs), D(0))
+    refs = {int(k): (v or "").strip() for k, v in (refs or {}).items()}
     z = D(0)
-    lines = [
-        {"account_id": a["expense"].id, "debit": gross, "credit": z, "description": "Gross pay (wages and vacation pay)"},
-    ]
-    if employer:
-        lines.append({"account_id": a["expense"].id, "debit": employer, "credit": z, "description": "Employer CPP, CPP2 and EI"})
-    if wsib:
-        lines.append({"account_id": a["wsib"].id, "debit": wsib, "credit": z, "description": "WSIB premium"})
-    lines.append({"account_id": a["liability"].id, "debit": z, "credit": withheld + employer + wsib,
-                  "description": "CPP, CPP2, EI and income tax to the Receiver General; WSIB"})
-    if net:
-        lines.append({"account_id": bank.id, "debit": z, "credit": net, "description": "Net pay"})
-    txn = create_journal_entry(db, run.pay_date, f"Payroll {run.period_start:%Y-%m-%d} to {run.period_end:%Y-%m-%d}",
-                               lines, source_type="payroll", source_id=run.id,
-                               reference=f"Pay run {run.pay_date:%Y-%m-%d}")
-    run.transaction_id = txn.id
+    first = None
+    for s in run.stubs:
+        emp = db.get(Employee, s.employee_id)
+        name = f"{emp.first_name} {emp.last_name}".strip() if emp else "Employee"
+        method = (emp.pay_method if emp else None) or "cheque"
+        if method not in PAY_METHODS:
+            method = "cheque"
+        ref = refs.get(s.employee_id, "")
+        if not ref and method != "cheque":
+            ref = PAY_METHODS[method]   # "E-transfer", "Direct deposit"
+        if len(ref) > 40:
+            raise HTTPException(status_code=400, detail=f"{name}: keep the reference to 40 characters.")
+        employer = D(s.employer_cpp) + D(s.employer_cpp2) + D(s.employer_ei)
+        withheld = D(s.cpp) + D(s.cpp2) + D(s.ei) + D(s.federal_tax) + D(s.state_tax)
+        lines = [{"account_id": a["expense"].id, "debit": D(s.gross_pay), "credit": z,
+                  "description": "Gross pay (wages and vacation pay)"}]
+        if employer:
+            lines.append({"account_id": a["expense"].id, "debit": employer, "credit": z,
+                          "description": "Employer CPP, CPP2 and EI"})
+        if D(s.wsib):
+            lines.append({"account_id": a["wsib"].id, "debit": D(s.wsib), "credit": z, "description": "WSIB premium"})
+        if withheld + employer + D(s.wsib):
+            lines.append({"account_id": a["liability"].id, "debit": z, "credit": withheld + employer + D(s.wsib),
+                          "description": "CPP, CPP2, EI and income tax to the Receiver General; WSIB"})
+        if D(s.net_pay):
+            lines.append({"account_id": bank.id, "debit": z, "credit": D(s.net_pay),
+                          "description": f"Pay {run.period_start:%b %d} - {run.period_end:%b %d, %Y} ({PAY_METHODS[method]})"})
+        txn = create_journal_entry(db, run.pay_date, name, lines, source_type="payroll", source_id=run.id,
+                                   reference=ref)
+        s.transaction_id, s.payment_method, s.payment_ref = txn.id, method, ref or None
+        first = first or txn
+    run.transaction_id = first.id if first else None
     run.status = PayRunStatus.PROCESSED
     for te in _period_entries(db, _paid_from_time(db, run), run.period_start, run.period_end):
         te.pay_run_id = run.id
@@ -272,10 +292,13 @@ def void_run(db, run: PayRun):
             f"The pay run of {later.pay_date:%Y-%m-%d} came after this one and counted it in its "
             "year-to-date. Void the later runs first, newest first."))
     check_closing_date(db, run.pay_date)
-    txn = db.get(Transaction, run.transaction_id) if run.transaction_id else None
-    if txn is not None:
-        create_journal_entry(db, run.pay_date, f"VOID {txn.description}", reversing_lines(txn.lines),
-                             source_type="payroll_void", source_id=run.id, reference=txn.reference or "")
+    # each paycheque's entry (a run from before paycheques: its one entry)
+    ids = [x.transaction_id for x in run.stubs if x.transaction_id] or [run.transaction_id]
+    for tid in dict.fromkeys(i for i in ids if i):
+        txn = db.get(Transaction, tid)
+        if txn is not None:
+            create_journal_entry(db, run.pay_date, f"VOID {txn.description}", reversing_lines(txn.lines),
+                                 source_type="payroll_void", source_id=run.id, reference=txn.reference or "")
     run.status = PayRunStatus.VOID
     for te in _period_entries(db, {x.employee_id for x in run.stubs}, run.period_start, run.period_end,
                               pay_run_id=run.id):

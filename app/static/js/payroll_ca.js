@@ -106,7 +106,10 @@ const PayrollCAPage = {
             <td>${escapeHtml(s.employee)}</td><td class="amount">${s.hours.toFixed(2)}</td>
             <td class="amount">${m(s.gross)}${s.vacation_pay ? `<br><span style="font-size:11px;color:var(--gray-600)">incl. vacation ${m(s.vacation_pay)}</span>` : ''}</td>
             <td class="amount">${m(s.cpp + s.cpp2)}</td><td class="amount">${m(s.ei)}</td><td class="amount">${m(s.income_tax)}</td>
-            <td class="amount"><strong>${m(s.net)}</strong></td><td>${s.pay_method === 'direct_deposit' ? 'Direct deposit' : 'Cheque'}</td>
+            <td class="amount"><strong>${m(s.net)}</strong></td><td>${escapeHtml(s.pay_method_label)}</td>
+            <td>${run.status === 'draft'
+                ? `<input class="pr-ref" data-emp="${s.employee_id}" maxlength="40" style="width:110px" placeholder="${s.pay_method === 'cheque' ? 'Cheque #' : escapeHtml(s.pay_method_label)}">`
+                : escapeHtml(s.payment_ref)}</td>
             <td><a class="btn btn-sm btn-secondary" href="/api/payroll/ca/runs/${run.id}/stubs/${s.id}/pdf" target="_blank" rel="noopener">Stub</a></td></tr>`).join('');
         const t = k => run.stubs.reduce((a, s) => a + s[k], 0);
         const remit = t('cpp') + t('cpp2') + t('ei') + t('income_tax') + t('employer_cpp') + t('employer_cpp2') + t('employer_ei');
@@ -120,10 +123,10 @@ const PayrollCAPage = {
             <div class="table-container"><table>
                 <thead><tr><th scope="col">Employee</th><th scope="col" class="amount">Hours</th><th scope="col" class="amount">Gross</th>
                 <th scope="col" class="amount">CPP</th><th scope="col" class="amount">EI</th><th scope="col" class="amount">Tax</th>
-                <th scope="col" class="amount">Net</th><th scope="col">Paid by</th><th scope="col"></th></tr></thead>
+                <th scope="col" class="amount">Net</th><th scope="col">Paid by</th><th scope="col">Cheque # / Ref</th><th scope="col"></th></tr></thead>
                 <tbody>${rows}</tbody>
                 <tfoot><tr><td><strong>Total</strong></td><td></td><td class="amount">${m(t('gross'))}</td><td class="amount">${m(t('cpp') + t('cpp2'))}</td>
-                <td class="amount">${m(t('ei'))}</td><td class="amount">${m(t('income_tax'))}</td><td class="amount"><strong>${m(t('net'))}</strong></td><td></td><td></td></tr></tfoot>
+                <td class="amount">${m(t('ei'))}</td><td class="amount">${m(t('income_tax'))}</td><td class="amount"><strong>${m(t('net'))}</strong></td><td></td><td></td><td></td></tr></tfoot>
             </table></div>
             <p style="font-size:13px;">Employer CPP ${m(t('employer_cpp') + t('employer_cpp2'))} · Employer EI ${m(t('employer_ei'))} · WSIB ${m(t('wsib'))}<br>
             <strong>Owed to the Receiver General for this pay: ${m(remit)}</strong> (goes on the month's PD7A)</p>
@@ -131,8 +134,12 @@ const PayrollCAPage = {
     },
     async process(id) {
         const bank = $('#pr-bank')?.value;
-        if (!(confirm('Process this pay run? It posts the payroll entry and the stubs become final.'))) return;
-        try { await API.post(`/payroll/ca/runs/${id}/process`, { bank_account_id: parseInt(bank) }); toast('Pay run processed'); PayrollCAPage.view(id); }
+        // each paycheque's cheque number or e-transfer reference (blank: an
+        // e-transfer or direct deposit is named as such; a cheque has none yet)
+        const refs = {};
+        $$('.pr-ref').forEach(i => { if (i.value.trim()) refs[i.dataset.emp] = i.value.trim(); });
+        if (!(confirm('Process this pay run? Each employee\'s pay is posted as its own cheque or e-transfer from the bank, and the stubs become final.'))) return;
+        try { await API.post(`/payroll/ca/runs/${id}/process`, { bank_account_id: parseInt(bank), refs }); toast('Pay run processed: paycheques posted'); PayrollCAPage.view(id); }
         catch (err) { toast(err.message, 'error'); }
     },
     async voidRun(id) {
@@ -155,7 +162,7 @@ const PayrollCAPage = {
             <td>${escapeHtml(e.last_name)}, ${escapeHtml(e.first_name)}</td><td>${escapeHtml(e.sin_display)}</td>
             <td class="amount">${PayrollCAPage.money(e.pay_rate)}/h × ${e.hours_from_timesheets ? 'timesheet hours' : (e.default_hours ?? '—')}</td>
             <td>${e.vacation_pct ? e.vacation_pct + '% on each pay' : 'Paid time off'}</td>
-            <td>${e.pay_method === 'direct_deposit' ? 'Direct deposit' : 'Cheque'}</td>
+            <td>${{ direct_deposit: 'Direct deposit', etransfer: 'E-transfer' }[e.pay_method] || 'Cheque'}</td>
             <td>${e.is_active ? 'Active' : 'Inactive'}</td>
             <td class="actions"><button class="btn btn-sm btn-secondary" onclick="PayrollCAPage.employeeForm(${e.id})">Edit</button>
                 ${ActiveLists.buttonHtml('employees', e)}</td></tr>`).join('');
@@ -196,7 +203,8 @@ const PayrollCAPage = {
                 <div class="form-group"><label>TD1ON Ontario claim</label><input name="td1_ontario" type="number" step="0.01" min="0" value="${v('td1_ontario')}" placeholder="basic amount"></div>
                 <div class="form-group"><label>Extra tax each pay</label><input name="extra_tax" type="number" step="0.01" min="0" value="${v('extra_tax') || 0}"></div>
                 <div class="form-group"><label>Paid by</label><select name="pay_method" onchange="document.getElementById('emp-dd').hidden = this.value !== 'direct_deposit'">
-                    <option value="cheque" ${e.pay_method !== 'direct_deposit' ? 'selected' : ''}>Cheque</option>
+                    <option value="cheque" ${!['direct_deposit', 'etransfer'].includes(e.pay_method) ? 'selected' : ''}>Cheque</option>
+                    <option value="etransfer" ${e.pay_method === 'etransfer' ? 'selected' : ''}>E-transfer</option>
                     <option value="direct_deposit" ${e.pay_method === 'direct_deposit' ? 'selected' : ''}>Direct deposit</option></select></div>
                 <div class="form-group"><label><input type="checkbox" name="cpp_exempt" ${e.cpp_exempt ? 'checked' : ''}> CPP exempt</label>
                     <label><input type="checkbox" name="ei_exempt" ${e.ei_exempt ? 'checked' : ''}> EI exempt</label>

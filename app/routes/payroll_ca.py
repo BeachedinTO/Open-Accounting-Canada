@@ -50,7 +50,7 @@ class EmployeeIn(BaseModel):
     extra_tax: float = 0
     cpp_exempt: bool = False
     ei_exempt: bool = False
-    pay_method: str = "cheque"         # cheque | direct_deposit
+    pay_method: str = "cheque"         # cheque | etransfer | direct_deposit
     bank_institution: Optional[str] = None
     bank_transit: Optional[str] = None
     bank_account: Optional[str] = None  # left out on an edit = unchanged
@@ -115,8 +115,8 @@ def _apply(e: Employee, data: EmployeeIn, creating: bool):
         raise HTTPException(status_code=400, detail="Enter the employee's address: street, city and postal code.")
     if data.vacation_pct < 0 or data.vacation_pct > 20:
         raise HTTPException(status_code=400, detail="Vacation pay is a percentage, like 4.")
-    if data.pay_method not in ("cheque", "direct_deposit"):
-        raise HTTPException(status_code=400, detail="Pay by cheque or direct deposit.")
+    if data.pay_method not in runs.PAY_METHODS:
+        raise HTTPException(status_code=400, detail="Pay by cheque, e-transfer or direct deposit.")
     if data.pay_method == "direct_deposit":
         inst, transit = _digits(data.bank_institution), _digits(data.bank_transit)
         acct = _digits(data.bank_account) if data.bank_account is not None else None
@@ -194,7 +194,10 @@ def _stub_out(db, s: PayStub, run: PayRun) -> dict:
     tax = D(s.federal_tax or 0) + D(s.state_tax or 0)
     out = {
         "id": s.id, "employee_id": s.employee_id, "employee": f"{e.first_name} {e.last_name}" if e else "",
-        "pay_method": (e.pay_method if e else "cheque"),
+        # a processed stub: how it was paid; a draft: how the employee is paid
+        "pay_method": s.payment_method or (e.pay_method if e else "cheque"),
+        "pay_method_label": runs.PAY_METHODS.get(s.payment_method or (e.pay_method if e else "cheque"), "Cheque"),
+        "payment_ref": s.payment_ref or "",
         "hours": float(s.hours or 0), "rate": float(s.rate or 0),
         "wages": float(D(s.gross_pay or 0) - D(s.vacation_pay or 0)), "vacation_pay": float(s.vacation_pay or 0),
         "gross": float(s.gross_pay or 0), "cpp": float(s.cpp or 0), "cpp2": float(s.cpp2 or 0),
@@ -277,11 +280,13 @@ def delete_run(run_id: int, db: Session = Depends(get_db)):
 
 class ProcessIn(BaseModel):
     bank_account_id: int
+    # bsq: {employee id: cheque number or e-transfer reference}
+    refs: Optional[dict[int, str]] = None
 
 
 @router.post("/runs/{run_id}/process")
 def process_run(run_id: int, data: ProcessIn, db: Session = Depends(get_db)):
-    run = runs.process_run(db, _run(db, run_id), data.bank_account_id)
+    run = runs.process_run(db, _run(db, run_id), data.bank_account_id, data.refs)
     db.commit()
     return _run_out(db, run)
 

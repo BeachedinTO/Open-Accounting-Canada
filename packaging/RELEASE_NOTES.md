@@ -6,10 +6,12 @@
 > Canadian edition: **Open Accounting Canada**, forked and maintained for bsq design inc. (Toronto) in [BeachedinTO/bsq-slowbooks](https://github.com/BeachedinTO/bsq-slowbooks), branch `bsq-canada`. For internal use; not sold or offered as a service.
 
 ### New in this release
-- **Home Page laid out like QuickBooks Desktop's**: Vendors, Customers and Employees panels with the workflow arrows (Enter Bills → Pay Bills; Estimates → Create Invoices → Receive Payments → Record Deposits; Enter Time → Pay Employees → Pay Liabilities → Process Payroll Forms), Company and Banking on the right (Write Cheques, Cheque Register, Reconcile, Record Deposits, Enter Credit Card Charges). Each icon opens its screen, with forms opened blank and ready to fill in. The overview cards that were the main page are its **Insights** tab.
-- **Write Cheques** is named as in QuickBooks: in the menu (was "Expenses"), on the page and on the form.
+- **A paycheque per employee**, as in QuickBooks: processing a pay run posts each employee's pay as its own bank entry, with the employee as payee and the cheque number or "E-transfer" as the reference, carrying that employee's wages, deductions, employer CPP/EI and WSIB. Type cheque numbers or e-transfer references on the pay run before processing. Voiding a run reverses each paycheque.
+- **E-transfer** is a pay method (Payroll → Employees → Edit → Paid by), alongside cheque and direct deposit; the stub shows how it was paid.
 
 ### Earlier releases
+- **Home Page laid out like QuickBooks Desktop's**: Vendors, Customers and Employees panels with the workflow arrows (Enter Bills → Pay Bills; Estimates → Create Invoices → Receive Payments → Record Deposits; Enter Time → Pay Employees → Pay Liabilities → Process Payroll Forms), Company and Banking on the right (Write Cheques, Cheque Register, Reconcile, Record Deposits, Enter Credit Card Charges). Each icon opens its screen, with forms opened blank and ready to fill in. The overview cards that were the main page are its **Insights** tab.
+- **Write Cheques** is named as in QuickBooks: in the menu (was "Expenses"), on the page and on the form.
 - **Fixed hours or timesheet hours, per employee** (Payroll → Employees → Edit → "Use timesheet hours to create pay cheques"). Off: paid the usual hours every pay (salaried staff; timesheets for job tracking, never locked by a pay run). On: the pay run takes the timesheet hours in the pay period.
 - Payroll checked against bsq's QuickBooks pay of Nov 20, 2026 with year-to-date amounts: Jiffy to the cent; Orontes to the cent except income tax, one cent under QuickBooks' (CRA's T4127 formula gives $557.8528).
 - **Weekly Timesheet**, laid out like QuickBooks Desktop's (Payroll & HR → Timesheet): Customer:Job, Service Item, Payroll Item, Notes, Monday–Sunday, Total, Billable?; Previous/Next week, Copy Last Sheet, Save & Next Week.

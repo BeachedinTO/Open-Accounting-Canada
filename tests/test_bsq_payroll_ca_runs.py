@@ -92,3 +92,37 @@ def test_a_pay_dated_in_2027_waits_for_cras_tables(client, db_session, seed_acco
     r = client.post("/api/payroll/ca/runs", json={"period_start": "2026-12-19", "period_end": "2027-01-01",
                                                    "pay_date": "2027-01-08", "lines": [{"employee_id": a["id"]}]})
     assert r.status_code == 400 and "not loaded" in r.text
+
+
+def test_each_employee_is_paid_by_their_own_cheque_or_e_transfer(client, db_session, seed_accounts):
+    """As QuickBooks' paycheques: one bank entry per employee, payee the
+    employee, reference the cheque number or "E-transfer" (bsq pays by
+    e-transfer), each carrying its own wages, deductions and employer costs."""
+    a, b = _setup(client, db_session)
+    r = client.put(f"/api/payroll/ca/employees/{a['id']}", json={**EMP, "first_name": "Orontes", "last_name": "Mejia",
+                                                                "pay_rate": 36, "pay_method": "etransfer"})
+    assert r.status_code == 200 and r.json()["pay_method"] == "etransfer", r.text
+    run = client.post("/api/payroll/ca/runs", json={"period_start": "2026-10-17", "period_end": "2026-10-30",
+        "pay_date": "2026-11-06", "lines": [{"employee_id": a["id"]}, {"employee_id": b["id"]}]}).json()
+    bank = seed_accounts["1000"].id
+    r = client.post(f"/api/payroll/ca/runs/{run['id']}/process",
+                    json={"bank_account_id": bank, "refs": {str(b["id"]): "1205"}})
+    assert r.status_code == 200, r.text
+    stubs = {s["employee_id"]: s for s in r.json()["stubs"]}
+    assert (stubs[a["id"]]["pay_method_label"], stubs[a["id"]]["payment_ref"]) == ("E-transfer", "E-transfer")
+    assert (stubs[b["id"]]["pay_method_label"], stubs[b["id"]]["payment_ref"]) == ("Cheque", "1205")
+
+    reg = client.get(f"/api/banking/check-register?account_id={bank}").json()["entries"]
+    pay = sorted((e["payee"], e["reference"], e["payment"]) for e in reg if e["source_type"] == "payroll")
+    assert pay == sorted([("Orontes Mejia", "E-transfer", stubs[a["id"]]["net"]),
+                          ("Sakiko Homma", "1205", stubs[b["id"]]["net"])])
+    # the stub says how it was paid
+    from app.models.payroll import PayStub
+    assert db_session.get(PayStub, stubs[b["id"]]["id"]).transaction_id is not None
+
+    # voiding reverses both paycheques; the bank is back where it was
+    assert client.post(f"/api/payroll/ca/runs/{run['id']}/void").status_code == 200
+    from tests.test_bsq_split_purchases import _gl
+    assert _gl(db_session, bank) == 0
+    reg = client.get(f"/api/banking/check-register?account_id={bank}").json()["entries"]
+    assert len([e for e in reg if e["source_type"] == "payroll_void"]) == 2

@@ -29,7 +29,7 @@
   <div class="head">
     <b>Employee Pay Stub</b>
     <span>Pay period: {{ run.period_start }} - {{ run.period_end }} &nbsp; Pay date: {{ run.pay_date }}
-      &nbsp; {{ 'Direct deposit' if s.pay_method == 'direct_deposit' else 'Cheque' }}</span>
+      &nbsp; {{ s.pay_method_label }}{% if s.payment_ref and s.payment_ref != s.pay_method_label %} {{ s.payment_ref }}{% endif %}</span>
   </div>
   <table>
     <tr><th>Earnings</th><th class="r">Hours</th><th class="r">Rate</th><th class="r">Current</th><th class="r">YTD</th></tr>
