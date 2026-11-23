@@ -247,7 +247,7 @@ def test_the_dashboard_cards_open_the_dated_report(browser, company, books):
         json={"value": {"order": ["pnl_month", "pnl_ytd", "balance_sheet_trend"]}},
     )
     assert r.status_code == 200, r.text
-    page, handled = _open_at(browser, company, "#/")
+    page, handled = _open_at(browser, company, "#/insights")   # bsq: the cards are the Home Page's Insights tab
     today = dt.date.today()
     try:
         page.wait_for_selector("#page-content a:has-text('Full P&L')")
@@ -278,7 +278,7 @@ def test_the_dashboard_cards_open_the_dated_report(browser, company, books):
         # click), so the card's own link opens the report again
         page.go_back()
         page.wait_for_selector("#page-content a:has-text('Full P&L')")
-        assert _hash(page) == "#/"
+        assert _hash(page) == "#/insights"
         page.wait_for_function(f"!({MODAL_SHOWN})()")
         page.click("#page-content a:has-text('Full P&L')", timeout=5000)
         page.wait_for_selector("#report-content table")
