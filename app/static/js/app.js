@@ -4,7 +4,10 @@
  */
 const App = {
     routes: {
-        '/':              { page: 'dashboard',       label: 'Dashboard',          render: () => DashboardPage.render() },
+        // bsq: the Home Page as QuickBooks Desktop's (homepage.js); the
+        // overview cards are its Insights tab
+        '/':              { page: 'dashboard',       label: 'Home Page',          render: () => HomePage.render() },
+        '/insights':      { page: 'insights',        label: 'Insights',           render: async () => HomePage.tabs('insights') + await DashboardPage.render() },
         '/customers':     { page: 'customers',       label: 'Customer Center',    render: () => CustomersPage.render() },
         // A customer's or a vendor's page (a dialog over its list) has an
         // address of its own (#238, R8 review): a report opened from the

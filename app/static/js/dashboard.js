@@ -100,8 +100,10 @@ const DashboardPage = {
     // ---- customize -------------------------------------------------------------
     startEdit() { DashboardPage._editing = true; DashboardPage._repaint(); },
     async cancelEdit() { await DashboardPage._reload(); },
-    async _reload() { $('#page-content').innerHTML = await DashboardPage.render(); },
-    _repaint() { $('#page-content').innerHTML = DashboardPage._pageHtml(); },
+    // bsq: the overview is the Home Page's Insights tab: its tabs stay on top
+    _tabs() { return typeof HomePage !== 'undefined' ? HomePage.tabs('insights') : ''; },
+    async _reload() { $('#page-content').innerHTML = DashboardPage._tabs() + await DashboardPage.render(); },
+    _repaint() { $('#page-content').innerHTML = DashboardPage._tabs() + DashboardPage._pageHtml(); },
 
     move(id, delta) {
         const o = DashboardPage._order;

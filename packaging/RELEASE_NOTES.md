@@ -6,10 +6,12 @@
 > Canadian edition: **Open Accounting Canada**, forked and maintained for bsq design inc. (Toronto) in [BeachedinTO/bsq-slowbooks](https://github.com/BeachedinTO/bsq-slowbooks), branch `bsq-canada`. For internal use; not sold or offered as a service.
 
 ### New in this release
-- **Fixed hours or timesheet hours, per employee** (Payroll → Employees → Edit → "Use timesheet hours to create pay cheques", as in QuickBooks). Off: paid the usual hours every pay, for salaried staff paid 80 hours whose timesheets are for job tracking; their timesheets are never locked by a pay run. On: the pay run takes the timesheet hours in the pay period. Updating sets it on only for employees with no usual hours.
-- Payroll checked against bsq's QuickBooks pay of Nov 20, 2026 with year-to-date amounts: Jiffy to the cent; Orontes to the cent except income tax, one cent under QuickBooks' (CRA's T4127 formula gives $557.8528).
+- **Home Page laid out like QuickBooks Desktop's**: Vendors, Customers and Employees panels with the workflow arrows (Enter Bills → Pay Bills; Estimates → Create Invoices → Receive Payments → Record Deposits; Enter Time → Pay Employees → Pay Liabilities → Process Payroll Forms), Company and Banking on the right (Write Cheques, Cheque Register, Reconcile, Record Deposits, Enter Credit Card Charges). Each icon opens its screen, with forms opened blank and ready to fill in. The overview cards that were the main page are its **Insights** tab.
+- **Write Cheques** is named as in QuickBooks: in the menu (was "Expenses"), on the page and on the form.
 
-### Earlier in November
+### Earlier releases
+- **Fixed hours or timesheet hours, per employee** (Payroll → Employees → Edit → "Use timesheet hours to create pay cheques"). Off: paid the usual hours every pay (salaried staff; timesheets for job tracking, never locked by a pay run). On: the pay run takes the timesheet hours in the pay period.
+- Payroll checked against bsq's QuickBooks pay of Nov 20, 2026 with year-to-date amounts: Jiffy to the cent; Orontes to the cent except income tax, one cent under QuickBooks' (CRA's T4127 formula gives $557.8528).
 - **Weekly Timesheet**, laid out like QuickBooks Desktop's (Payroll & HR → Timesheet): Customer:Job, Service Item, Payroll Item, Notes, Monday–Sunday, Total, Billable?; Previous/Next week, Copy Last Sheet, Save & Next Week.
 - **Billable time on invoices**: billable timesheet hours for a customer's jobs are offered under "Time" when you start that customer's invoice, next to billable expenses. They come on as the service item, with the hours as the quantity and the notes as the description. The rate is entered on the invoice. Each entry is billed once; voiding the invoice frees it.
 

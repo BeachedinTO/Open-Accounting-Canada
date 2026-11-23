@@ -247,8 +247,8 @@ const ExpensesPage = {
         const expenses = await API.get('/expenses');
         let html = `
             <div class="page-header">
-                <h2>Expenses</h2>
-                <button class="btn btn-primary" ${App.shortcutAttrs('E', 'Enter Expense')} onclick="ExpensesPage.showForm()">+ Enter Expense</button>
+                <h2>Write Cheques &amp; Expenses</h2>
+                <button class="btn btn-primary" ${App.shortcutAttrs('E', 'Write Cheque')} onclick="ExpensesPage.showForm()">+ Write Cheque</button>
             </div>`;
 
         if (expenses.length === 0) {
@@ -309,7 +309,7 @@ const ExpensesPage = {
         const acctOpt = a => `<option value="${a.id}">${accountLabel(a)}</option>`;
         const checking = paidFrom.find(a => /checking/i.test(a.name || '')) || paidFrom[0];
 
-        openModal(x ? `Edit Cheque ${escapeHtml(x.reference || '')}`.trim() : 'Enter Purchase (cheque, debit, cash, e-transfer)', `
+        openModal(x ? `Edit Cheque ${escapeHtml(x.reference || '')}`.trim() : 'Write Cheque (or debit, cash, e-transfer)', `
             <form id="expense-form" onsubmit="ExpensesPage.save(event, ${x ? x.id : 'null'})">
                 ${x ? '' : ScanHelper.scanRowHtml()}
                 <div class="cheque-box">
